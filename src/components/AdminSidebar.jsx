@@ -43,7 +43,7 @@ const AdminSidebar = () => {
     
     // Rules & Policies
     { section: 'RULES & POLICIES' },
-    { path: '/admin/visit-rules', icon: FaCalendarCheck, label: 'Visit & Parole Rules' },
+    { path: '/admin/visit-rules', icon: FaCalendarCheck, label: 'Visit Rules' },
     { path: '/admin/prison-rules', icon: FaShieldAlt, label: 'Prison Rules' },
     
     // User Management

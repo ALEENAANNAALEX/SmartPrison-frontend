@@ -10,7 +10,13 @@ export const supabase = (supabaseUrl !== 'https://placeholder.supabase.co' && su
         storage: window.sessionStorage, // Use sessionStorage instead of localStorage
         autoRefreshToken: true,
         persistSession: true,
-        detectSessionInUrl: true
+        detectSessionInUrl: true,
+        flowType: 'pkce' // Use PKCE flow for better security
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'prison-management-system'
+        }
       }
     })
   : null
@@ -85,4 +91,62 @@ export const onAuthStateChange = (callback) => {
     return { data: { subscription: { unsubscribe: () => {} } } }
   }
   return supabase.auth.onAuthStateChange(callback)
+}
+
+// Refresh session if needed
+export const refreshSession = async () => {
+  try {
+    if (!supabase) {
+      return { error: 'Supabase not configured' }
+    }
+
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error) {
+      console.error('Error refreshing session:', error.message)
+      return { error: error.message }
+    }
+    return { data }
+  } catch (error) {
+    console.error('Unexpected error refreshing session:', error)
+    return { error: 'An unexpected error occurred' }
+  }
+}
+
+// Validate current session
+export const validateSession = async () => {
+  try {
+    if (!supabase) {
+      throw new Error('Supabase is not configured')
+    }
+
+    // Get current session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    
+    if (sessionError) {
+      throw new Error('Authentication session error. Please log in again.')
+    }
+
+    if (!session) {
+      throw new Error('No active session found. Please log in again.')
+    }
+
+    // Get current user to ensure session is valid
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (userError) {
+      throw new Error('Failed to validate user session. Please log in again.')
+    }
+
+    if (!user) {
+      throw new Error('User not found. Please log in again.')
+    }
+
+    return { session, user }
+  } catch (error) {
+    // Only log errors in development mode to avoid console spam
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Session validation failed:', error.message)
+    }
+    throw error
+  }
 }

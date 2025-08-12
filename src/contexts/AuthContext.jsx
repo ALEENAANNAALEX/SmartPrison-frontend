@@ -261,6 +261,40 @@ export const AuthProvider = ({ children }) => {
             // Always sync Supabase users with MongoDB
             const syncedUser = await syncSupabaseUserWithMongoDB(supabaseUser)
 
+            // After sync, fetch the latest user data to ensure we have all profile updates
+            if (syncedUser) {
+              console.log('🔄 Fetching latest user data after sync...')
+              try {
+                const token = sessionStorage.getItem('token')
+                if (token) {
+                  const response = await fetch('http://localhost:5000/api/user/profile', {
+                    method: 'GET',
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Content-Type': 'application/json'
+                    }
+                  })
+
+                  if (response.ok) {
+                    const data = await response.json()
+                    if (data.success && data.user) {
+                      const updatedUser = {
+                        ...data.user,
+                        id: data.user.id || data.user._id,
+                        role: data.user.role,
+                        authProvider: data.user.authProvider
+                      }
+                      console.log('✅ Fresh user data loaded after sync:', updatedUser)
+                      sessionStorage.setItem('user', JSON.stringify(updatedUser))
+                      setUser(updatedUser)
+                    }
+                  }
+                }
+              } catch (error) {
+                console.warn('Failed to fetch fresh user data after sync:', error)
+              }
+            }
+
             // Clear history to prevent going back and navigate to appropriate dashboard
             setTimeout(() => {
               const dashboardPath = syncedUser?.role === 'admin' ? '/admin' : '/dashboard'
@@ -364,6 +398,94 @@ export const AuthProvider = ({ children }) => {
     return await checkAuthState()
   }
 
+  // Function to fetch fresh user data from database
+  const fetchFreshUserData = async () => {
+    try {
+      const token = sessionStorage.getItem('token')
+      if (!token) {
+        console.log('No token found for fresh user data fetch')
+        return null
+      }
+
+      console.log('🔄 Fetching fresh user data from database...')
+      const response = await fetch('http://localhost:5000/api/user/profile', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        console.error('Failed to fetch fresh user data:', response.status)
+        return null
+      }
+
+      const data = await response.json()
+      console.log('✅ Fresh user data fetched:', data)
+
+      if (data.success && data.user) {
+        // Update sessionStorage with fresh data
+        const updatedUser = {
+          ...data.user,
+          // Preserve important fields that might not be in the profile response
+          id: data.user.id || data.user._id,
+          role: data.user.role,
+          authProvider: data.user.authProvider
+        }
+
+        console.log('📸 Profile picture in fresh data:', updatedUser.profilePicture);
+        sessionStorage.setItem('user', JSON.stringify(updatedUser))
+        setUser(updatedUser)
+        console.log('✅ User context updated with fresh data')
+        return updatedUser
+      }
+
+      return null
+    } catch (error) {
+      console.error('Error fetching fresh user data:', error)
+      return null
+    }
+  }
+
+  // Function to validate and refresh Supabase session
+  const validateSupabaseSession = async () => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured')
+    }
+
+    try {
+      // Get current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('Session validation error:', sessionError)
+        throw new Error('Authentication session error. Please log in again.')
+      }
+
+      if (!session) {
+        throw new Error('No active session found. Please log in again.')
+      }
+
+      // Get current user to ensure session is valid
+      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser()
+      
+      if (userError) {
+        console.error('User validation error:', userError)
+        throw new Error('Failed to validate user session. Please log in again.')
+      }
+
+      if (!currentUser) {
+        throw new Error('User not found. Please log in again.')
+      }
+
+      return { session, user: currentUser }
+    } catch (error) {
+      console.error('Session validation failed:', error)
+      throw error
+    }
+  }
+
   // Login function (for programmatic login after successful auth)
   const login = (userData, token) => {
     const now = Date.now().toString()
@@ -381,6 +503,8 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     refreshUser,
+    fetchFreshUserData,
+    validateSupabaseSession,
     clearAllAuthData,
     isAuthenticated: !!user
   }

@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/AdminLayout';
-import { FaUsers, FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaUserShield, FaUserTie } from 'react-icons/fa';
+import { FaUsers, FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaUserShield, FaUserTie, FaExclamationTriangle } from 'react-icons/fa';
+import { useFormValidation } from '../../hooks/useFormValidation';
+import ValidatedInput, { ValidatedSelect, ValidatedTextarea, ValidatedCheckbox } from '../../components/ValidatedInput';
+import { 
+  userValidationRules, 
+  userCreationValidationRules, 
+  validateEmailUniqueness 
+} from '../../utils/validation';
 
 const AllUsers = () => {
   const [users, setUsers] = useState([]);
@@ -11,15 +18,48 @@ const AllUsers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [formData, setFormData] = useState({
+  const [submitting, setSubmitting] = useState(false);
+
+  // Initial form data
+  const initialFormData = {
     name: '',
     email: '',
     password: '',
     role: 'visitor',
     phone: '',
     address: '',
+    gender: '',
+    nationality: '',
     isActive: true
-  });
+  };
+
+  // Form validation hook
+  const {
+    formData,
+    errors,
+    touched,
+    isValid,
+    handleFieldChange,
+    handleFieldBlur,
+    validateAllFields,
+    resetForm,
+    updateFormData,
+    getFieldError,
+    isFieldValidating,
+    hasFieldError,
+    isFieldValid
+  } = useFormValidation(
+    initialFormData,
+    editingUser ? userValidationRules : userCreationValidationRules,
+    {
+      validateOnChange: true,
+      validateOnBlur: true,
+      debounceMs: 500,
+      asyncValidators: {
+        email: (email) => validateEmailUniqueness(email, editingUser?._id)
+      }
+    }
+  );
 
   useEffect(() => {
     fetchUsers();
@@ -78,7 +118,7 @@ const AllUsers = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/admin/users', {
+      const response = await fetch('http://localhost:5000/api/admin/users', {
         headers: {
           'Authorization': `Bearer ${sessionStorage.getItem('token')}`
         }
@@ -107,6 +147,16 @@ const AllUsers = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate all fields before submission
+    const isFormValid = await validateAllFields();
+    if (!isFormValid) {
+      console.log('Form validation failed:', errors);
+      return;
+    }
+
+    setSubmitting(true);
+    
     try {
       const url = editingUser 
         ? `http://localhost:5000/api/admin/users/${editingUser._id}`
@@ -114,54 +164,81 @@ const AllUsers = () => {
       
       const method = editingUser ? 'PUT' : 'POST';
       
+      // Prepare data for submission
+      const submitData = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        phone: formData.phone,
+        address: formData.address,
+        gender: formData.gender,
+        nationality: formData.nationality,
+        isActive: formData.isActive
+      };
+
+      // Only include password if it's provided (for creation or password change)
+      if (formData.password) {
+        submitData.password = formData.password;
+      }
+      
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${sessionStorage.getItem('token')}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(submitData)
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         fetchUsers();
         setShowAddModal(false);
         setEditingUser(null);
         resetForm();
+        
+        // Show success message
+        alert(data.msg || `User ${editingUser ? 'updated' : 'created'} successfully!`);
+      } else {
+        // Handle server validation errors
+        alert(data.msg || 'An error occurred while saving the user');
       }
     } catch (error) {
       console.error('Error saving user:', error);
+      alert('Network error occurred. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      email: '',
-      password: '',
-      role: 'visitor',
-      phone: '',
-      address: '',
-      isActive: true
-    });
+  const handleAddUser = () => {
+    setEditingUser(null);
+    resetForm();
+    setShowAddModal(true);
   };
 
   const handleEdit = (user) => {
     setEditingUser(user);
-    setFormData({
+    
+    // Update form data with user information
+    updateFormData({
       name: user.name,
       email: user.email,
       password: '', // Don't populate password for security
       role: user.role,
-      phone: user.phone || '',
+      phone: user.phoneNumber || '',
       address: user.address || '',
+      gender: user.gender || '',
+      nationality: user.nationality || '',
       isActive: user.isActive !== false
     });
+    
     setShowAddModal(true);
   };
 
   const handleDelete = async (userId) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
+    if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
         const response = await fetch(`http://localhost:5000/api/admin/users/${userId}`, {
           method: 'DELETE',
@@ -170,11 +247,17 @@ const AllUsers = () => {
           }
         });
 
-        if (response.ok) {
+        const data = await response.json();
+
+        if (response.ok && data.success) {
           fetchUsers();
+          alert(data.msg || 'User deleted successfully');
+        } else {
+          alert(data.msg || 'Failed to delete user');
         }
       } catch (error) {
         console.error('Error deleting user:', error);
+        alert('Network error occurred. Please try again.');
       }
     }
   };
@@ -190,11 +273,17 @@ const AllUsers = () => {
         body: JSON.stringify({ isActive: !currentStatus })
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         fetchUsers();
+        alert(data.msg || `User ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      } else {
+        alert(data.msg || 'Failed to update user status');
       }
     } catch (error) {
       console.error('Error toggling user status:', error);
+      alert('Network error occurred. Please try again.');
     }
   };
 
@@ -303,7 +392,7 @@ const AllUsers = () => {
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold text-gray-900">User Management</h3>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={handleAddUser}
             className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
           >
             <FaPlus /> Add New User
@@ -380,7 +469,7 @@ const AllUsers = () => {
                       {users.length === 0 && (
                         <div className="flex gap-3">
                           <button
-                            onClick={() => setShowAddModal(true)}
+                            onClick={handleAddUser}
                             className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
                           >
                             Add First User
@@ -475,90 +564,154 @@ const AllUsers = () => {
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    required
-                  />
-                </div>
+                <ValidatedInput
+                  label="Full Name"
+                  name="name"
+                  type="text"
+                  value={formData.name}
+                  onChange={handleFieldChange}
+                  onBlur={handleFieldBlur}
+                  error={getFieldError('name')}
+                  isValidating={isFieldValidating('name')}
+                  isValid={isFieldValid('name')}
+                  placeholder="Enter full name"
+                  required
+                />
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    required
-                  />
-                </div>
+                <ValidatedInput
+                  label="Email Address"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleFieldChange}
+                  onBlur={handleFieldBlur}
+                  error={getFieldError('email')}
+                  isValidating={isFieldValidating('email')}
+                  isValid={isFieldValid('email')}
+                  placeholder="Enter email address"
+                  required
+                  disabled={editingUser ? true : false}
+                  helperText={editingUser ? "Email cannot be changed after account creation" : ""}
+                />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {editingUser ? 'New Password (leave blank to keep current)' : 'Password'}
-                  </label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    required={!editingUser}
-                  />
-                </div>
+                <ValidatedInput
+                  label={editingUser ? 'New Password (leave blank to keep current)' : 'Password'}
+                  name="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={handleFieldChange}
+                  onBlur={handleFieldBlur}
+                  error={getFieldError('password')}
+                  isValidating={isFieldValidating('password')}
+                  isValid={isFieldValid('password')}
+                  placeholder={editingUser ? 'Leave blank to keep current password' : 'Enter password'}
+                  required={!editingUser}
+                />
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({...formData, role: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="visitor">Visitor</option>
-                    <option value="warden">Warden</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                <ValidatedSelect
+                  label="Role"
+                  name="role"
+                  value={formData.role}
+                  onChange={handleFieldChange}
+                  onBlur={handleFieldBlur}
+                  error={getFieldError('role')}
+                  isValid={isFieldValid('role')}
+                  options={[
+                    { value: 'visitor', label: 'Visitor' },
+                    { value: 'warden', label: 'Warden' },
+                    { value: 'admin', label: 'Admin' }
+                  ]}
+                  placeholder="Select a role"
+                  required
                 />
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-                <textarea
-                  value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  rows="3"
+              <div className="grid grid-cols-2 gap-4">
+                <ValidatedInput
+                  label="Phone Number"
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={handleFieldChange}
+                  onBlur={handleFieldBlur}
+                  error={getFieldError('phone')}
+                  isValidating={isFieldValidating('phone')}
+                  isValid={isFieldValid('phone')}
+                  placeholder="Enter 10-digit mobile number"
+                  helperText="Must be 10 digits starting with 6, 7, 8, or 9 (optional)"
+                  maxLength={10}
+                />
+
+                <ValidatedSelect
+                  label="Gender"
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleFieldChange}
+                  onBlur={handleFieldBlur}
+                  error={getFieldError('gender')}
+                  isValid={isFieldValid('gender')}
+                  options={[
+                    { value: 'male', label: 'Male' },
+                    { value: 'female', label: 'Female' },
+                    { value: 'other', label: 'Other' }
+                  ]}
+                  placeholder="Select gender (optional)"
                 />
               </div>
 
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({...formData, isActive: e.target.checked})}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                />
-                <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
-                  Active User
-                </label>
-              </div>
+              <ValidatedInput
+                label="Nationality"
+                name="nationality"
+                type="text"
+                value={formData.nationality}
+                onChange={handleFieldChange}
+                onBlur={handleFieldBlur}
+                error={getFieldError('nationality')}
+                isValidating={isFieldValidating('nationality')}
+                isValid={isFieldValid('nationality')}
+                placeholder="Enter nationality (optional)"
+              />
               
+              <ValidatedTextarea
+                label="Address"
+                name="address"
+                value={formData.address}
+                onChange={handleFieldChange}
+                onBlur={handleFieldBlur}
+                error={getFieldError('address')}
+                isValid={isFieldValid('address')}
+                placeholder="Enter address (optional)"
+                rows={3}
+              />
+
+              <ValidatedCheckbox
+                label="Active User"
+                name="isActive"
+                checked={formData.isActive}
+                onChange={handleFieldChange}
+                onBlur={handleFieldBlur}
+                error={getFieldError('isActive')}
+              />
+              
+              {/* Form Validation Summary */}
+              {Object.keys(errors).length > 0 && Object.keys(touched).length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <FaExclamationTriangle className="text-red-500 mr-2" />
+                    <h4 className="text-sm font-medium text-red-800">Please fix the following errors:</h4>
+                  </div>
+                  <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
+                    {Object.entries(errors).map(([field, error]) => (
+                      touched[field] && error && (
+                        <li key={field}>{error}</li>
+                      )
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="flex gap-4 pt-4">
                 <button
                   type="button"
@@ -568,14 +721,27 @@ const AllUsers = () => {
                     resetForm();
                   }}
                   className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition-colors"
+                  disabled={submitting}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
+                  disabled={submitting || (!isValid && Object.keys(touched).length > 0)}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    submitting || (!isValid && Object.keys(touched).length > 0)
+                      ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  }`}
                 >
-                  {editingUser ? 'Update' : 'Create'} User
+                  {submitting ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      {editingUser ? 'Updating...' : 'Creating...'}
+                    </div>
+                  ) : (
+                    `${editingUser ? 'Update' : 'Create'} User`
+                  )}
                 </button>
               </div>
             </form>

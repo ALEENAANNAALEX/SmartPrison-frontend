@@ -7,7 +7,6 @@ import {
   FaUserTie,
   FaFileAlt,
   FaCalendarAlt,
-  FaGavel,
   FaChartLine,
   FaUserClock,
   FaHeartbeat,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Lock, CheckCircle, XCircle } from 'lucide-react';
+import { XCircle, CheckCircle } from 'lucide-react';
+import ValidatedInput from '../components/ValidatedInput';
 import emblem from '../assets/kerala-emblem.png';
 import Footer from '../components/Footer';
 
@@ -52,10 +53,10 @@ export default function ResetPassword() {
 
   const validatePassword = (password) => {
     if (!password) return 'Password is required';
-    if (password.length < 8) return 'Password must be at least 8 characters';
+    if (password.length < 8) return 'Password must be at least 8 characters long';
     if (!/(?=.*[a-zA-Z])/.test(password)) return 'Password must contain at least one letter';
     if (!/(?=.*\d)/.test(password)) return 'Password must contain at least one number';
-    if (!/(?=.*[!@#$%^&*(),.?":{}|<>])/.test(password)) return 'Password must contain at least one symbol';
+    if (!/(?=.*[@$!%*?&])/.test(password)) return 'Password must contain at least one special character (@$!%*?&)';
     return '';
   };
 
@@ -65,19 +66,17 @@ export default function ResetPassword() {
     return '';
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    
-    setFormData({
-      ...formData,
+  const handleChange = (name, value) => {
+    setFormData(prev => ({
+      ...prev,
       [name]: value
-    });
+    }));
 
     // Real-time validation
     let error = '';
     if (name === 'password') {
       error = validatePassword(value);
-      // Also revalidate confirm password
+      // Also revalidate confirm password if it exists
       if (formData.confirmPassword) {
         setErrors(prev => ({
           ...prev,
@@ -88,10 +87,10 @@ export default function ResetPassword() {
       error = validateConfirmPassword(value, formData.password);
     }
 
-    setErrors({
-      ...errors,
+    setErrors(prev => ({
+      ...prev,
       [name]: error
-    });
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -631,51 +630,27 @@ export default function ResetPassword() {
 
           {/* Reset Password Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                New Password
-              </label>
-              <input
+              <ValidatedInput
                 type="password"
-                id="password"
                 name="password"
+                label="New Password"
                 value={formData.password}
                 onChange={handleChange}
-                required
-                className={`w-full px-4 py-3 bg-gray-50 border rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                  errors.password
-                    ? 'border-red-500 focus:ring-red-500'
-                    : 'border-gray-300 focus:ring-gray-500'
-                }`}
+                error={errors.password}
                 placeholder="Enter your new password"
+                required
               />
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-              )}
-            </div>
 
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
-              </label>
-              <input
+              <ValidatedInput
                 type="password"
-                id="confirmPassword"
                 name="confirmPassword"
+                label="Confirm Password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                required
-                className={`w-full px-4 py-3 bg-gray-50 border rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                  errors.confirmPassword
-                    ? 'border-red-500 focus:ring-red-500'
-                    : 'border-gray-300 focus:ring-gray-500'
-                }`}
+                error={errors.confirmPassword}
                 placeholder="Confirm your new password"
+                required
               />
-              {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
-              )}
-            </div>
 
             <button
               type="submit"

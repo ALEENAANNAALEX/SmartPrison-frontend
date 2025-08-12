@@ -5,39 +5,31 @@ import { supabase } from '../../lib/supabase';
 
 const VisitRules = () => {
   const [visitRules, setVisitRules] = useState([]);
-  const [paroleRules, setParoleRules] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('visit');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [formErrors, setFormErrors] = useState({});
 
-  // Configuration: Use Supabase if available, otherwise use mock server
   const USE_SUPABASE = supabase !== null;
   const API_BASE_URL = USE_SUPABASE ? null : 'http://localhost:5000/api/admin';
   const [formData, setFormData] = useState({
     title: '',
-    description: '',
     category: 'general',
     rules: '',
-    restrictions: '',
     prohibitedItems: '',
-    allowedVisitorTypes: '',
+    allowedVisitorTypes: 'Family',
     visitingHours: {
-      maxVisitsPerWeek: 2,
-      maxVisitsPerMonth: 8,
+      maxVisitsPerMonth: 6,
       maxVisitDuration: 60,
       maxVisitorsPerSession: 3,
       minVisitorAge: 18
     },
-    securityChecks: '',
     isActive: true
   });
 
   useEffect(() => {
     fetchVisitRules();
-    fetchParoleRules();
   }, []);
 
   // Function to show messages
@@ -138,6 +130,7 @@ const VisitRules = () => {
       } else {
         const errorText = await response.text();
         console.error('❌ Response not ok:', response.status, errorText);
+        showMessage('error', `Failed to fetch visit rules: ${response.status} ${response.statusText || ''} - ${errorText}`);
       }
     } catch (error) {
       console.error('❌ Error fetching visit rules:', error);
@@ -147,45 +140,11 @@ const VisitRules = () => {
     }
   };
 
-  const fetchParoleRules = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/admin/rules/parole', {
-        headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('token') || localStorage.getItem('token') || 'mock-token'}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setParoleRules(data.rules);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching parole rules:', error);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('🚀 FORM SUBMITTED');
     console.log('🚀 Current form data:', JSON.stringify(formData, null, 2));
     console.log('🚀 Editing rule:', editingRule);
-
-    // Debug: Check each field
-    console.log('📋 Form field analysis:');
-    console.log('- Title:', formData.title);
-    console.log('- Description:', formData.description);
-    console.log('- Category:', formData.category);
-    console.log('- Rules:', formData.rules);
-    console.log('- Restrictions:', formData.restrictions);
-    console.log('- Eligibility Criteria:', formData.eligibilityCriteria);
-    console.log('- Prohibited Items:', formData.prohibitedItems);
-    console.log('- Allowed Visitor Types:', formData.allowedVisitorTypes);
-    console.log('- Special Conditions:', formData.specialConditions);
-    console.log('- Security Checks:', formData.securityChecks);
-    console.log('- Visiting Hours:', formData.visitingHours);
-    console.log('- Is Active:', formData.isActive);
 
     // Simple validation
     if (!formData.title.trim()) {
@@ -193,24 +152,23 @@ const VisitRules = () => {
       return;
     }
 
-    if (!formData.description.trim()) {
-      alert('Please enter a description');
-      return;
-    }
+    // Helper to convert comma-separated strings to arrays
+    const toArray = (str) => {
+      if (typeof str === 'string' && str.trim() !== '') {
+        return str.split(',').map(item => item.trim());
+      }
+      return [];
+    };
 
     try {
-      // Send all details as plain strings (no arrays or objects except visitingHours)
       const dataToSend = {
         title: formData.title ? String(formData.title).trim() : '',
-        description: formData.description ? String(formData.description).trim() : '',
+        description: (formData.description ? String(formData.description).trim() : '') || String(formData.title).trim(),
         category: formData.category ? String(formData.category).trim() : 'general',
-        rules: formData.rules ? String(formData.rules).trim() : '',
-        restrictions: formData.restrictions ? String(formData.restrictions).trim() : '',
-        prohibitedItems: formData.prohibitedItems ? String(formData.prohibitedItems).trim() : '',
-        allowedVisitorTypes: formData.allowedVisitorTypes ? String(formData.allowedVisitorTypes).trim() : '',
-        securityChecks: formData.securityChecks ? String(formData.securityChecks).trim() : '',
+        rules: toArray(formData.rules),
+        prohibitedItems: toArray(formData.prohibitedItems),
+        allowedVisitorTypes: [formData.allowedVisitorTypes],
         visitingHours: {
-          maxVisitsPerWeek: formData.visitingHours.maxVisitsPerWeek || 2,
           maxVisitsPerMonth: formData.visitingHours.maxVisitsPerMonth || 8,
           maxVisitDuration: formData.visitingHours.maxVisitDuration || 60,
           maxVisitorsPerSession: formData.visitingHours.maxVisitorsPerSession || 3,
@@ -245,13 +203,20 @@ const VisitRules = () => {
         fetchVisitRules();
         showMessage('success', 'Rule saved successfully with all fields!');
       } else {
-        let errorData;
+        let errorBody;
+        let errorText = '';
         try {
-          errorData = await response.clone().json();
+          const cloned = response.clone();
+          errorBody = await cloned.json();
+          errorText = errorBody.message || JSON.stringify(errorBody);
         } catch {
-          errorData = await response.clone().text();
+          try {
+            errorText = await response.clone().text();
+          } catch {
+            errorText = 'Unknown server error';
+          }
         }
-        showMessage('error', 'Error: ' + (errorData.message || JSON.stringify(errorData)));
+        showMessage('error', `Error ${response.status} ${response.statusText || ''}: ${errorText}`);
       }
     } catch (error) {
       showMessage('error', 'Network error: ' + error.message);
@@ -262,15 +227,11 @@ const VisitRules = () => {
     console.log('🔄 Resetting form to default values');
     const defaultFormData = {
       title: '',
-      description: '',
       category: 'general',
       rules: '',
-      restrictions: '',
       prohibitedItems: '',
-      allowedVisitorTypes: '',
-      securityChecks: '',
+      allowedVisitorTypes: 'Family',
       visitingHours: {
-        maxVisitsPerWeek: 2,
         maxVisitsPerMonth: 8,
         maxVisitDuration: 60,
         maxVisitorsPerSession: 3,
@@ -292,21 +253,16 @@ const VisitRules = () => {
 
     const newFormData = {
       title: rule.title || '',
-      description: rule.description || '',
       category: rule.category || 'general',
       rules: joinField(rule.rules),
-      restrictions: joinField(rule.restrictions),
       prohibitedItems: joinField(rule.prohibitedItems),
-      allowedVisitorTypes: joinField(rule.allowedVisitorTypes),
-      securityChecks: joinField(rule.securityChecks),
+      allowedVisitorTypes: Array.isArray(rule.allowedVisitorTypes) ? rule.allowedVisitorTypes[0] : 'Family',
       visitingHours: rule.visitingHours ? {
-        maxVisitsPerWeek: rule.visitingHours.maxVisitsPerWeek || 2,
         maxVisitsPerMonth: rule.visitingHours.maxVisitsPerMonth || 8,
         maxVisitDuration: rule.visitingHours.maxVisitDuration || 60,
         maxVisitorsPerSession: rule.visitingHours.maxVisitorsPerSession || 3,
         minVisitorAge: rule.visitingHours.minVisitorAge || 18
       } : {
-        maxVisitsPerWeek: 2,
         maxVisitsPerMonth: 8,
         maxVisitDuration: 60,
         maxVisitorsPerSession: 3,
@@ -325,8 +281,7 @@ const VisitRules = () => {
   const handleDelete = async (ruleId) => {
     if (window.confirm('Are you sure you want to delete this rule?')) {
       try {
-        const endpoint = activeTab === 'visit' ? 'visits' : 'parole';
-        const response = await fetch(`http://localhost:5000/api/admin/rules/${endpoint}/${ruleId}`, {
+        const response = await fetch(`http://localhost:5000/api/admin/rules/visits/${ruleId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${sessionStorage.getItem('token') || localStorage.getItem('token') || 'mock-token'}`
@@ -334,11 +289,21 @@ const VisitRules = () => {
         });
 
         if (response.ok) {
-          if (activeTab === 'visit') {
-            fetchVisitRules();
-          } else {
-            fetchParoleRules();
+          fetchVisitRules();
+          showMessage('success', 'Rule deleted successfully');
+        } else {
+          let errorText = '';
+          try {
+            const errJson = await response.clone().json();
+            errorText = errJson.message || JSON.stringify(errJson);
+          } catch {
+            try {
+              errorText = await response.clone().text();
+            } catch {
+              errorText = 'Unknown server error';
+            }
           }
+          showMessage('error', `Error deleting rule: ${response.status} ${response.statusText || ''} - ${errorText}`);
         }
       } catch (error) {
         console.error('Error deleting rule:', error);
@@ -370,11 +335,11 @@ const VisitRules = () => {
     });
   };
 
-  const currentRules = activeTab === 'visit' ? visitRules : paroleRules;
+  const currentRules = visitRules;
 
   if (loading) {
     return (
-      <AdminLayout title="Visit & Parole Rules" subtitle="Manage visiting and parole regulations">
+      <AdminLayout title="Visit Rules" subtitle="Manage visiting regulations">
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
         </div>
@@ -383,30 +348,15 @@ const VisitRules = () => {
   }
 
   return (
-    <AdminLayout title="Visit & Parole Rules" subtitle="Manage visiting and parole regulations">
+    <AdminLayout title="Visit Rules" subtitle="Manage visiting regulations">
       {/* Tabs */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
             <button
-              onClick={() => setActiveTab('visit')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'visit'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+              className={`py-4 px-1 border-b-2 font-medium text-sm border-indigo-500 text-indigo-600`}
             >
               Visit Rules ({visitRules.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('parole')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'parole'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Parole Rules ({paroleRules.length})
             </button>
           </nav>
         </div>
@@ -420,13 +370,10 @@ const VisitRules = () => {
               </div>
               <div>
                 <h3 className="text-xl font-semibold text-gray-900">
-                  {activeTab === 'visit' ? 'Visit Rules' : 'Parole Rules'}
+                  Visit Rules
                 </h3>
                 <p className="text-gray-600">
-                  {activeTab === 'visit' 
-                    ? 'Manage visiting regulations and policies' 
-                    : 'Manage parole eligibility and conditions'
-                  }
+                  Manage visiting regulations and policies
                 </p>
               </div>
             </div>
@@ -436,17 +383,11 @@ const VisitRules = () => {
                   // Add a sample rule with all fields filled
                   const sampleData = {
                     title: "Sample Complete Rule",
-                    description: "This is a sample rule with all fields filled for testing",
                     category: "family",
                     rules: ["Sample rule 1", "Sample rule 2"],
-                    restrictions: ["No food items", "No electronic devices"],
-                    eligibilityCriteria: ["Good behavior", "Completed orientation"],
                     prohibitedItems: ["Weapons", "Drugs", "Cell phones"],
-                    allowedVisitorTypes: ["Family", "Legal counsel"],
-                    specialConditions: ["Supervised visits only", "ID required"],
-                    securityChecks: ["Metal detector", "Bag search"],
+                    allowedVisitorTypes: ["Family"],
                     visitingHours: {
-                      maxVisitsPerWeek: 3,
                       maxVisitsPerMonth: 12,
                       maxVisitDuration: 90,
                       maxVisitorsPerSession: 4,
@@ -486,7 +427,7 @@ const VisitRules = () => {
                 }}
                 className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
               >
-                <FaPlus /> Add {activeTab === 'visit' ? 'Visit' : 'Parole'} Rule
+                <FaPlus /> Add Visit Rule
               </button>
             </div>
           </div>
@@ -543,7 +484,6 @@ const VisitRules = () => {
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900">{rule.title}</h3>
-                  <p className="text-gray-600 mt-1">{rule.description}</p>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                   rule.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -562,20 +502,6 @@ const VisitRules = () => {
                       ))}
                       {rule.rules.length > 3 && (
                         <li className="text-gray-400">... and {rule.rules.length - 3} more</li>
-                      )}
-                    </ul>
-                  </div>
-                )}
-
-                {rule.restrictions && rule.restrictions.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Restrictions:</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                      {rule.restrictions.slice(0, 2).map((r, index) => (
-                        <li key={index}>{r}</li>
-                      ))}
-                      {rule.restrictions.length > 2 && (
-                        <li className="text-gray-400">... and {rule.restrictions.length - 2} more</li>
                       )}
                     </ul>
                   </div>
@@ -609,57 +535,14 @@ const VisitRules = () => {
                   </div>
                 )}
 
-                {rule.eligibilityCriteria && rule.eligibilityCriteria.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Eligibility Criteria:</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                      {rule.eligibilityCriteria.slice(0, 2).map((criteria, index) => (
-                        <li key={index}>{criteria}</li>
-                      ))}
-                      {rule.eligibilityCriteria.length > 2 && (
-                        <li className="text-gray-400">... and {rule.eligibilityCriteria.length - 2} more</li>
-                      )}
-                    </ul>
-                  </div>
-                )}
-
-                {rule.specialConditions && rule.specialConditions.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Special Conditions:</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                      {rule.specialConditions.slice(0, 2).map((condition, index) => (
-                        <li key={index}>{condition}</li>
-                      ))}
-                      {rule.specialConditions.length > 2 && (
-                        <li className="text-gray-400">... and {rule.specialConditions.length - 2} more</li>
-                      )}
-                    </ul>
-                  </div>
-                )}
-
-                {rule.securityChecks && rule.securityChecks.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Security Checks:</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                      {rule.securityChecks.slice(0, 2).map((check, index) => (
-                        <li key={index}>{check}</li>
-                      ))}
-                      {rule.securityChecks.length > 2 && (
-                        <li className="text-gray-400">... and {rule.securityChecks.length - 2} more</li>
-                      )}
-                    </ul>
-                  </div>
-                )}
-
                 {rule.visitingHours && (
                   <div>
                     <h4 className="font-medium text-gray-900 mb-2">Visiting Hours Configuration:</h4>
                     <div className="text-sm text-gray-600 grid grid-cols-2 gap-2 bg-gray-50 p-3 rounded-lg">
-                      <span>Max visits/week: <strong>{rule.visitingHours.maxVisitsPerWeek}</strong></span>
                       <span>Max visits/month: <strong>{rule.visitingHours.maxVisitsPerMonth}</strong></span>
                       <span>Max duration: <strong>{rule.visitingHours.maxVisitDuration} min</strong></span>
                       <span>Max visitors: <strong>{rule.visitingHours.maxVisitorsPerSession}</strong></span>
-                      <span className="col-span-2">Min visitor age: <strong>{rule.visitingHours.minVisitorAge} years</strong></span>
+                      <span>Min visitor age: <strong>{rule.visitingHours.minVisitorAge} years</strong></span>
                     </div>
                   </div>
                 )}
@@ -699,7 +582,7 @@ const VisitRules = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-4xl w-full mx-4 max-h-screen overflow-y-auto">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">
-              {editingRule ? 'Edit' : 'Add'} {activeTab === 'visit' ? 'Visit' : 'Parole'} Rule
+              {editingRule ? 'Edit' : 'Add'} Visit Rule
             </h3>
             
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -749,27 +632,6 @@ const VisitRules = () => {
                 </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => {
-                    setFormData({...formData, description: e.target.value});
-                    if (formErrors.description) {
-                      setFormErrors({...formErrors, description: ''});
-                    }
-                  }}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                    formErrors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
-                  rows="3"
-                  required
-                />
-                {formErrors.description && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.description}</p>
-                )}
-              </div>
-
               {/* Rules */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Rules</label>
@@ -781,19 +643,6 @@ const VisitRules = () => {
                   placeholder="Enter rule..."
                 />
               </div>
-
-              {/* Restrictions */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Restrictions</label>
-                <input
-                  type="text"
-                  value={formData.restrictions}
-                  onChange={(e) => setFormData({ ...formData, restrictions: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Enter restriction..."
-                />
-              </div>
-
 
               {/* Prohibited Items */}
               <div>
@@ -813,31 +662,18 @@ const VisitRules = () => {
               {/* Allowed Visitor Types */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Allowed Visitor Types</label>
-                <input
-                  type="text"
+                <select
                   value={formData.allowedVisitorTypes}
                   onChange={(e) => setFormData({ ...formData, allowedVisitorTypes: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Enter visitor types (e.g., Family, Legal, Friend)..."
-                />
+                >
+                  <option value="Family">Family</option>
+                  <option value="Legal">Legal</option>
+                  <option value="Friend">Friend</option>
+                  <option value="Official">Official</option>
+                </select>
                 {formErrors.allowedVisitorTypes && (
                   <p className="mt-1 text-sm text-red-600">{formErrors.allowedVisitorTypes}</p>
-                )}
-              </div>
-
-
-              {/* Security Checks */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Security Checks</label>
-                <input
-                  type="text"
-                  value={formData.securityChecks}
-                  onChange={(e) => setFormData({ ...formData, securityChecks: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Enter security checks..."
-                />
-                {formErrors.securityChecks && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.securityChecks}</p>
                 )}
               </div>
 
@@ -846,28 +682,27 @@ const VisitRules = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-4">Visiting Hours Configuration</label>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Max Visits Per Week</label>
+                    <label className="block text-xs text-gray-600 mb-1">Minimum Visitor Age</label>
                     <input
                       type="number"
-                      min="1"
-                      max="7"
-                      value={formData.visitingHours.maxVisitsPerWeek}
+                      min="0"
+                      max="21"
+                      value={formData.visitingHours.minVisitorAge}
                       onChange={(e) => setFormData({
                         ...formData,
                         visitingHours: {
                           ...formData.visitingHours,
-                          maxVisitsPerWeek: parseInt(e.target.value) || 1
+                          minVisitorAge: parseInt(e.target.value) || 0
                         }
                       })}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                        formErrors.maxVisitsPerWeek ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                        formErrors.minVisitorAge ? 'border-red-300 bg-red-50' : 'border-gray-300'
                       }`}
                     />
-                    {formErrors.maxVisitsPerWeek && (
-                      <p className="mt-1 text-xs text-red-600">{formErrors.maxVisitsPerWeek}</p>
+                    {formErrors.minVisitorAge && (
+                      <p className="mt-1 text-xs text-red-600">{formErrors.minVisitorAge}</p>
                     )}
                   </div>
-
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Max Visits Per Month</label>
                     <input
@@ -934,29 +769,6 @@ const VisitRules = () => {
                     />
                     {formErrors.maxVisitorsPerSession && (
                       <p className="mt-1 text-xs text-red-600">{formErrors.maxVisitorsPerSession}</p>
-                    )}
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="block text-xs text-gray-600 mb-1">Minimum Visitor Age</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="21"
-                      value={formData.visitingHours.minVisitorAge}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        visitingHours: {
-                          ...formData.visitingHours,
-                          minVisitorAge: parseInt(e.target.value) || 0
-                        }
-                      })}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                        formErrors.minVisitorAge ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                      }`}
-                    />
-                    {formErrors.minVisitorAge && (
-                      <p className="mt-1 text-xs text-red-600">{formErrors.minVisitorAge}</p>
                     )}
                   </div>
                 </div>

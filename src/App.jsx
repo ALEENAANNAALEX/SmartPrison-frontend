@@ -22,6 +22,8 @@ import VisitRules from './pages/admin/VisitRules';
 import PrisonRules from './pages/admin/PrisonRules';
 import AllUsers from './pages/admin/AllUsers';
 import Settings from './pages/admin/Settings';
+import ValidationTest from './components/ValidationTest';
+import TestUserForm from './components/TestUserForm';
 
 // Staff Pages
 import StaffDashboard from './pages/staff/StaffDashboard';
@@ -110,6 +112,8 @@ const AppWithGuard = () => {
           <Settings />
         </ProtectedRoute>
       } />
+      <Route path="/validation-test" element={<ValidationTest />} />
+      <Route path="/test-user-form" element={<TestUserForm />} />
       <Route path="/staff/dashboard" element={
         <ProtectedRoute>
           <StaffDashboard />

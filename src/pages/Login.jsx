@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import emblem from '../assets/kerala-emblem.png';
 import Footer from '../components/Footer';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,69 +16,17 @@ export default function Login() {
     name: '',
     email: '',
     password: '',
-    confirmPassword: '',
-    phoneNumber: '',
-    dateOfBirth: ''
+    confirmPassword: ''
   });
 
   const [errors, setErrors] = useState({
     name: '',
     email: '',
     password: '',
-    confirmPassword: '',
-    phoneNumber: '',
-    dateOfBirth: ''
+    confirmPassword: ''
   });
 
-  // Add validation functions for phone and date of birth
-  const validatePhoneNumber = (phone) => {
-    // Phone number must be 10 digits starting with 6, 7, 8, or 9
-    const phoneRegex = /^[6-9]\d{9}$/;
-    return phoneRegex.test(phone);
-  };
 
-  const validateDateOfBirth = (dateOfBirth) => {
-    if (!dateOfBirth) return false;
-
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-
-    // Check if the date is in the future
-    if (birthDate > today) {
-      return false;
-    }
-
-    // Calculate age more precisely
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    return age >= 18;
-  };
-
-  // Calculate and display current age for real-time feedback
-  const calculateAge = (dateOfBirth) => {
-    if (!dateOfBirth) return 0;
-
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-
-    if (birthDate > today) {
-      return 0;
-    }
-
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    return age;
-  };
 
   const [oldErrors, setOldErrors] = useState({
     name: '',
@@ -90,11 +39,11 @@ export default function Login() {
     name: false,
     email: false,
     password: false,
-    confirmPassword: false,
-    phoneNumber: false,
-    dateOfBirth: false
+    confirmPassword: false
   });
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 
@@ -172,26 +121,6 @@ export default function Login() {
       } else if (value !== formData.password) {
         error = 'Passwords do not match';
       }
-    } else if (name === 'phoneNumber' && isSignUp) {
-      if (!value.trim()) {
-        error = 'Phone number is required';
-      } else if (!validatePhoneNumber(value)) {
-        error = 'Phone number must be 10 digits starting with 6, 7, 8, or 9';
-      }
-    } else if (name === 'dateOfBirth' && isSignUp) {
-      if (!value) {
-        error = 'Date of birth is required';
-      } else {
-        const age = calculateAge(value);
-        const birthDate = new Date(value);
-        const today = new Date();
-
-        if (birthDate > today) {
-          error = 'Date of birth cannot be in the future';
-        } else if (age < 18) {
-          error = `You must be at least 18 years old. Current age: ${age} years`;
-        }
-      }
     }
 
     setErrors(prev => ({ ...prev, [name]: error }));
@@ -202,11 +131,11 @@ export default function Login() {
     setIsLoading(true);
 
     // Clear all errors
-    setErrors({ name: '', email: '', password: '', confirmPassword: '', phoneNumber: '', dateOfBirth: '' });
+    setErrors({ name: '', email: '', password: '', confirmPassword: '' });
 
     // Validation
     let hasErrors = false;
-    const newErrors = { name: '', email: '', password: '', confirmPassword: '', phoneNumber: '', dateOfBirth: '' };
+    const newErrors = { name: '', email: '', password: '', confirmPassword: '' };
 
     if (isSignUp) {
       // Signup validation
@@ -229,31 +158,6 @@ export default function Login() {
       if (!validatePassword(formData.password)) {
         newErrors.password = 'Password must be 8+ characters with letters, numbers, and symbols';
         hasErrors = true;
-      }
-
-      if (!formData.phoneNumber.trim()) {
-        newErrors.phoneNumber = 'Phone number is required';
-        hasErrors = true;
-      } else if (!validatePhoneNumber(formData.phoneNumber)) {
-        newErrors.phoneNumber = 'Phone number must be 10 digits starting with 6, 7, 8, or 9';
-        hasErrors = true;
-      }
-
-      if (!formData.dateOfBirth) {
-        newErrors.dateOfBirth = 'Date of birth is required';
-        hasErrors = true;
-      } else {
-        const age = calculateAge(formData.dateOfBirth);
-        const birthDate = new Date(formData.dateOfBirth);
-        const today = new Date();
-
-        if (birthDate > today) {
-          newErrors.dateOfBirth = 'Date of birth cannot be in the future';
-          hasErrors = true;
-        } else if (age < 18) {
-          newErrors.dateOfBirth = `You must be at least 18 years old. Current age: ${age} years`;
-          hasErrors = true;
-        }
       }
     }
 
@@ -283,9 +187,7 @@ export default function Login() {
         ? {
             name: formData.name,
             email: formData.email,
-            password: formData.password,
-            phoneNumber: formData.phoneNumber,
-            dateOfBirth: formData.dateOfBirth
+            password: formData.password
           }
         : { email: formData.email, password: formData.password };
 
@@ -323,12 +225,10 @@ export default function Login() {
           name: '',
           email: formData.email, // Keep email for convenience
           password: '',
-          confirmPassword: '',
-          phoneNumber: '',
-          dateOfBirth: ''
+          confirmPassword: ''
         });
-        setErrors({ name: '', email: '', password: '', confirmPassword: '', phoneNumber: '', dateOfBirth: '' });
-        setTouched({ name: false, email: false, password: false, confirmPassword: false, phoneNumber: false, dateOfBirth: false });
+        setErrors({ name: '', email: '', password: '', confirmPassword: '' });
+        setTouched({ name: false, email: false, password: false, confirmPassword: false });
 
       } else {
         // For login: use AuthContext login function
@@ -676,20 +576,33 @@ export default function Login() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Password
               </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                className={`w-full px-4 py-3 bg-gray-50 border rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                  touched.password && errors.password
-                    ? 'border-red-500 focus:ring-red-500'
-                    : 'border-gray-300 focus:ring-gray-500'
-                }`}
-                placeholder={isSignUp ? "Create a password" : "Enter your password"}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  className={`w-full px-4 py-3 pr-12 bg-gray-50 border rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
+                    touched.password && errors.password
+                      ? 'border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 focus:ring-gray-500'
+                  }`}
+                  placeholder={isSignUp ? "Create a password" : "Enter your password"}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
               {touched.password && errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
               )}
@@ -701,84 +614,40 @@ export default function Login() {
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
                   Confirm Password
                 </label>
-                <input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                  className={`w-full px-4 py-3 bg-gray-50 border rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                    touched.confirmPassword && errors.confirmPassword
-                      ? 'border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:ring-gray-500'
-                  }`}
-                  placeholder="Confirm your password"
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    required
+                    className={`w-full px-4 py-3 pr-12 bg-gray-50 border rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
+                      touched.confirmPassword && errors.confirmPassword
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-gray-500'
+                    }`}
+                    placeholder="Confirm your password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
                 {touched.confirmPassword && errors.confirmPassword && (
                   <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
                 )}
               </div>
             )}
 
-            {/* Phone Number field - only for signup */}
-            {isSignUp && (
-              <div>
-                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  id="phoneNumber"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  required
-                  className={`w-full px-4 py-3 bg-gray-50 border rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                    touched.phoneNumber && errors.phoneNumber
-                      ? 'border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:ring-gray-500'
-                  }`}
-                  placeholder="Enter your 10-digit phone number"
-                  maxLength="10"
-                />
-                {touched.phoneNumber && errors.phoneNumber && (
-                  <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
-                )}
-              </div>
-            )}
 
-            {/* Date of Birth field - only for signup */}
-            {isSignUp && (
-              <div>
-                <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700 mb-2">
-                  Date of Birth
-                </label>
-                <input
-                  type="date"
-                  id="dateOfBirth"
-                  name="dateOfBirth"
-                  value={formData.dateOfBirth}
-                  onChange={handleChange}
-                  required
-                  min="1900-01-01"
-                  max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0]}
-                  className={`w-full px-4 py-3 bg-gray-50 border rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                    touched.dateOfBirth && errors.dateOfBirth
-                      ? 'border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:ring-gray-500'
-                  }`}
-                />
-                {formData.dateOfBirth && (
-                  <p className="mt-1 text-sm text-gray-600">
-                    Current age: {calculateAge(formData.dateOfBirth)} years
-                  </p>
-                )}
-                {touched.dateOfBirth && errors.dateOfBirth && (
-                  <p className="mt-1 text-sm text-red-600">{errors.dateOfBirth}</p>
-                )}
-              </div>
-            )}
 
             {/* Forgot password link - only for login */}
             {!isSignUp && (

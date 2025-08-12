@@ -12,52 +12,172 @@ import {
   FileText,
   Shield,
   Users,
-  Settings
+  Settings,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import emblem from '../assets/kerala-emblem.png';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigationGuard } from '../hooks/useNavigationGuard';
 import { useNotification } from '../contexts/NotificationContext';
+import { supabase, validateSession } from '../lib/supabase';
+import { useFormValidation } from '../hooks/useFormValidation';
+import ValidatedInput, { ValidatedSelect, ValidatedTextarea } from '../components/ValidatedInput';
+import {
+  validateName,
+  validateEmail,
+  validateUserPhone,
+  validateUserAddress,
+  validatePassword,
+  validateConfirmPassword,
+  validateInmateId,
+  validateVisitDate,
+  validateVisitTime,
+  validateRelationship,
+  validatePurpose,
+  getMinDateForVisit,
+  getMaxDateForVisit
+} from '../utils/validation';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, fetchFreshUserData } = useAuth();
   const { showSuccess, showError } = useNotification();
+
+  // Redirect to login if user is not authenticated
+  useEffect(() => {
+    if (!user) {
+      console.log('No user found, redirecting to login');
+      navigate('/login', { replace: true });
+      return;
+    }
+  }, [user, navigate]);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showScheduleVisit, setShowScheduleVisit] = useState(false);
   const [showViewHistory, setShowViewHistory] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
-  const [userProfile, setUserProfile] = useState({
-    name: user?.user_metadata?.full_name || user?.name || 'ALEENA ANNA ALEX',
-    email: user?.email || 'aleenaannaalex2026@mca.ajce.in',
-    phone: user?.phone || '',
-    address: user?.address || '',
-    profilePhoto: user?.user_metadata?.avatar_url || user?.profilePhoto || 'https://lh3.googleusercontent.com/a/ACg8ocLwDeAicKdSKvQE1D2b0qOclgCrvwj2khm_H6UPPp6wjahMEdlx=s96-c',
-    // Additional fields from Supabase
-    fullName: user?.user_metadata?.full_name || user?.name || 'ALEENA ANNA ALEX',
-    dateOfBirth: user?.user_metadata?.dateOfBirth || '1995-06-15',
-    gender: user?.user_metadata?.gender || 'female',
-    nationality: user?.user_metadata?.nationality || 'Indian',
-    maritalStatus: user?.user_metadata?.maritalStatus || 'single'
+  const [userProfile, setUserProfile] = useState(() => {
+    const profilePicture = user?.user_metadata?.avatar_url || user?.profilePicture || user?.profilePhoto;
+    const profilePhotoUrl = profilePicture && !profilePicture.startsWith('http') 
+      ? `http://localhost:5000${profilePicture}` 
+      : profilePicture;
+    
+    return {
+      name: user?.user_metadata?.full_name || user?.name || 'User',
+      email: user?.email || '',
+      phone: user?.phoneNumber || user?.phone || '',
+      address: user?.address || '',
+      profilePhoto: profilePhotoUrl || 'https://lh3.googleusercontent.com/a/ACg8ocLwDeAicKdSKvQE1D2b0qOclgCrvwj2khm_H6UPPp6wjahMEdlx=s96-c',
+      // Additional fields from Supabase
+      fullName: user?.user_metadata?.full_name || user?.name || 'User'
+    };
   });
+
+  // Update userProfile when user context changes (after fresh data fetch)
+  useEffect(() => {
+    if (user) {
+      console.log('🔄 Updating userProfile from user context:', {
+        name: user.name,
+        profilePicture: user.profilePicture,
+        phone: user.phoneNumber
+      });
+      
+      const profilePicture = user?.user_metadata?.avatar_url || user?.profilePicture || user?.profilePhoto;
+      const profilePhotoUrl = profilePicture && !profilePicture.startsWith('http') 
+        ? `http://localhost:5000${profilePicture}` 
+        : profilePicture;
+      
+      setUserProfile(prev => ({
+        ...prev,
+        name: user?.user_metadata?.full_name || user?.name || prev.name,
+        email: user?.email || prev.email,
+        phone: user?.phoneNumber || user?.phone || prev.phone,
+        address: user?.address || prev.address,
+        profilePhoto: profilePhotoUrl || prev.profilePhoto,
+        fullName: user?.user_metadata?.full_name || user?.name || prev.fullName
+      }));
+    }
+  }, [user]);
+
+  // Debug profile photo changes
+  useEffect(() => {
+    console.log('📸 Profile photo changed:', userProfile.profilePhoto);
+  }, [userProfile.profilePhoto]);
 
   // Use navigation guard to prevent going back to auth pages
   useNavigationGuard();
 
-  // Redirect admin users to admin dashboard
+  // Redirect admin users to admin dashboard and validate session
   useEffect(() => {
     console.log('Dashboard useEffect - User data:', user);
     console.log('Dashboard useEffect - User role:', user?.role);
+    
     if (user && user.role === 'admin') {
       console.log('Redirecting admin user to /admin');
       navigate('/admin', { replace: true });
     }
+
+    // Validate Supabase session on component mount (only for Supabase users)
+    const checkSession = async () => {
+      try {
+        // Only validate session for Supabase users (Google OAuth users)
+        if (user && supabase && (user.supabaseId || user.authProvider === 'google')) {
+          await validateSession();
+        }
+      } catch (error) {
+        // Silently handle session validation errors
+        // Don't show error immediately, let user try actions first
+      }
+    };
+
+    // Fetch fresh user data from database on component mount
+    const loadFreshUserData = async () => {
+      try {
+        if (user && !user.supabaseId) { // Only for MongoDB users
+          console.log('🔄 Loading fresh user data for MongoDB user...');
+          const freshUser = await fetchFreshUserData();
+          if (freshUser) {
+            console.log('✅ Fresh user data loaded successfully');
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load fresh user data:', error.message);
+      }
+    };
+
+    checkSession();
+    loadFreshUserData();
   }, [user, navigate]);
 
-  // Function to update profile data
-  const updateProfile = (newProfileData) => {
+  // Function to update profile data and global user context
+  const { refreshUser } = useAuth();
+  const updateProfile = async (newProfileData) => {
     setUserProfile(prev => ({ ...prev, ...newProfileData }));
+    // Refresh global user context from backend after update
+    try {
+      console.log('🔄 Refreshing user context after profile update...');
+      const freshUser = await fetchFreshUserData();
+      if (freshUser) {
+        console.log('✅ User context refreshed with latest data');
+        // Update local profile state with fresh data
+        setUserProfile(prev => ({
+          ...prev,
+          name: freshUser.name || prev.name,
+          email: freshUser.email || prev.email,
+          phone: freshUser.phoneNumber || prev.phone,
+          address: freshUser.address || prev.address,
+          profilePhoto: freshUser.profilePicture || prev.profilePhoto
+        }));
+        console.log('📸 Updated profile photo URL:', freshUser.profilePicture);
+      }
+    } catch (error) {
+      console.warn('Failed to refresh user context:', error);
+      // Fallback to old method
+      if (typeof refreshUser === 'function') {
+        await refreshUser();
+      }
+    }
   };
 
 
@@ -113,6 +233,18 @@ export default function Dashboard() {
     }
   ];
 
+  // Don't render dashboard if user is not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-900">
       {/* Navigation Header - Same as Home page */}
@@ -129,12 +261,23 @@ export default function Dashboard() {
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 border-2 border-gray-300">
                   {userProfile.profilePhoto ? (
-                    <img src={userProfile.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-300">
-                      <User className="w-4 h-4 text-gray-600" />
-                    </div>
-                  )}
+                    <img 
+                      src={userProfile.profilePhoto} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        console.error('❌ Profile image failed to load:', userProfile.profilePhoto);
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                      onLoad={() => {
+                        console.log('✅ Profile image loaded successfully:', userProfile.profilePhoto);
+                      }}
+                    />
+                  ) : null}
+                  <div className="w-full h-full flex items-center justify-center bg-gray-300" style={{ display: userProfile.profilePhoto ? 'none' : 'flex' }}>
+                    <User className="w-4 h-4 text-gray-600" />
+                  </div>
                 </div>
                 <span className="text-gray-700 font-medium">Welcome, {userProfile.name}</span>
               </div>
@@ -204,7 +347,7 @@ export default function Dashboard() {
           </div>
 
           {/* Dashboard Stats Cards - Home page style */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
             {/* Total Visits Card */}
             <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between mb-4">
@@ -248,6 +391,21 @@ export default function Dashboard() {
               </div>
               <h3 className="text-gray-900 font-semibold text-lg">Active Inmates</h3>
               <p className="text-gray-600 text-sm mt-1">People you can visit</p>
+            </div>
+
+            {/* Profile Status Card */}
+            <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-purple-600 rounded-lg shadow-md">
+                  <Shield className="w-6 h-6 text-white" />
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-bold text-gray-900">100%</p>
+                  <p className="text-purple-600 text-sm font-medium">Profile complete</p>
+                </div>
+              </div>
+              <h3 className="text-gray-900 font-semibold text-lg">Profile Status</h3>
+              <p className="text-gray-600 text-sm mt-1">Account verification status</p>
             </div>
           </div>
 
@@ -346,10 +504,10 @@ export default function Dashboard() {
           </div>
 
           {/* Quick Actions Section */}
-          <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <button
               onClick={() => setShowScheduleVisit(true)}
-              className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 hover:scale-105 text-center group"
+              className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow duration-200 text-center group"
             >
               <div className="p-3 bg-blue-600 rounded-lg shadow-md mx-auto w-fit mb-4 group-hover:bg-blue-700 transition-colors">
                 <Calendar className="w-6 h-6 text-white" />
@@ -360,7 +518,7 @@ export default function Dashboard() {
 
             <button
               onClick={() => setShowViewHistory(true)}
-              className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 hover:scale-105 text-center group"
+              className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow duration-200 text-center group"
             >
               <div className="p-3 bg-green-600 rounded-lg shadow-md mx-auto w-fit mb-4 group-hover:bg-green-700 transition-colors">
                 <FileText className="w-6 h-6 text-white" />
@@ -371,7 +529,7 @@ export default function Dashboard() {
 
             <button
               onClick={() => setShowEditProfile(true)}
-              className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 hover:scale-105 text-center group"
+              className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow duration-200 text-center group"
             >
               <div className="p-3 bg-purple-600 rounded-lg shadow-md mx-auto w-fit mb-4 group-hover:bg-purple-700 transition-colors">
                 <User className="w-6 h-6 text-white" />
@@ -382,7 +540,7 @@ export default function Dashboard() {
 
             <button
               onClick={() => setShowResetPassword(true)}
-              className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 hover:scale-105 text-center group"
+              className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow duration-200 text-center group"
             >
               <div className="p-3 bg-red-600 rounded-lg shadow-md mx-auto w-fit mb-4 group-hover:bg-red-700 transition-colors">
                 <Shield className="w-6 h-6 text-white" />
@@ -399,6 +557,7 @@ export default function Dashboard() {
         <EditProfileModal
           userProfile={userProfile}
           updateProfile={updateProfile}
+          setUserProfile={setUserProfile}
           onClose={() => setShowEditProfile(false)}
           showSuccess={showSuccess}
           showError={showError}
@@ -432,27 +591,58 @@ export default function Dashboard() {
 }
 
 // Edit Profile Modal Component
-function EditProfileModal({ userProfile, updateProfile, onClose, showSuccess, showError }) {
-  const [formData, setFormData] = useState({
+function EditProfileModal({ userProfile, updateProfile, setUserProfile, onClose, showSuccess, showError }) {
+  const { user } = useAuth();
+
+  // Define validation rules for the profile form
+  const validationRules = {
+    name: validateName,
+    email: validateEmail,
+    phone: validateUserPhone,
+    address: validateUserAddress
+  };
+
+  // Initialize form validation
+  const {
+    formData,
+    errors,
+    touched,
+    isValid,
+    handleFieldChange,
+    handleFieldBlur,
+    validateAllFields,
+    getFieldError,
+    hasFieldError,
+    isFieldValid
+  } = useFormValidation({
     name: userProfile.name,
     email: userProfile.email,
-    phone: userProfile.phone,
-    address: userProfile.address,
-    profilePhoto: null,
-    // Additional fields
-    fullName: userProfile.fullName,
-    dateOfBirth: userProfile.dateOfBirth,
-    gender: userProfile.gender,
-    nationality: userProfile.nationality,
-    maritalStatus: userProfile.maritalStatus
-  });
+    phone: userProfile.phone || '',
+    address: userProfile.address || ''
+  }, validationRules);
+
   const [photoPreview, setPhotoPreview] = useState(userProfile.profilePhoto);
+  const [profilePhoto, setProfilePhoto] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setFormData({ ...formData, profilePhoto: file });
+      // Validate file type and size
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+      const maxSize = 5 * 1024 * 1024; // 5MB
+
+      if (!validTypes.includes(file.type)) {
+        showError('Please select a valid image file (JPEG, PNG, or GIF)', 'Invalid File Type');
+        return;
+      }
+
+      if (file.size > maxSize) {
+        showError('Image size must be less than 5MB', 'File Too Large');
+        return;
+      }
+
+      setProfilePhoto(file);
       const reader = new FileReader();
       reader.onload = (e) => setPhotoPreview(e.target.result);
       reader.readAsDataURL(file);
@@ -463,32 +653,172 @@ function EditProfileModal({ userProfile, updateProfile, onClose, showSuccess, sh
     e.preventDefault();
     setLoading(true);
 
+    // Validate all fields
+    const isFormValid = await validateAllFields();
+    if (!isFormValid) {
+      setLoading(false);
+      showError('Please fix all validation errors before submitting', 'Validation Error');
+      return;
+    }
+
     try {
-      // Prepare updated profile data
-      const updatedProfile = {
+      let avatarUrl = userProfile.profilePhoto;
+      let useSupabase = false;
+      let currentUser = user;
+
+      // Check if user is authenticated via Supabase (Google OAuth)
+      console.log('User object:', user);
+      console.log('User has supabaseId:', !!user?.supabaseId);
+      console.log('User authProvider:', user?.authProvider);
+      console.log('Supabase available:', !!supabase);
+      
+      // Force all users (including Google users) to use MongoDB for profile updates
+      // This ensures data persistence across login sessions
+      console.log('Forcing MongoDB profile update for all users to ensure persistence');
+      useSupabase = false;
+
+      // Upload new profile photo if selected (using MongoDB backend for all users)
+      if (profilePhoto) {
+        // For MongoDB users, we'll handle photo upload via the backend API
+        console.log('Uploading photo via MongoDB API');
+        
+        const formDataForUpload = new FormData();
+        formDataForUpload.append('profilePicture', profilePhoto);
+        
+        const token = sessionStorage.getItem('token');
+        if (!token) {
+          throw new Error('Authentication token not found. Please log in again.');
+        }
+
+        try {
+          const uploadResponse = await fetch('http://localhost:5000/api/user/profile/picture', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
+            body: formDataForUpload
+          });
+
+          if (!uploadResponse.ok) {
+            let errorMessage = 'Failed to upload profile picture';
+            try {
+              const errorData = await uploadResponse.json();
+              errorMessage = errorData.msg || errorData.message || errorMessage;
+            } catch (parseError) {
+              errorMessage = `Upload error: ${uploadResponse.status} ${uploadResponse.statusText}`;
+            }
+            throw new Error(errorMessage);
+          }
+
+          const uploadData = await uploadResponse.json();
+          avatarUrl = `http://localhost:5000${uploadData.profilePicture}`;
+          console.log('Photo uploaded successfully:', avatarUrl);
+          
+          // Immediately update the profile photo in the form preview
+          setPhotoPreview(avatarUrl);
+        } catch (uploadError) {
+          console.error('Photo upload error:', uploadError);
+          showError('Failed to upload profile picture. Continuing with profile update.', 'Upload Warning');
+        }
+      }
+
+      // Update profile via MongoDB API (for all users including Google users)
+      const token = sessionStorage.getItem('token');
+      console.log('MongoDB update - Token available:', !!token);
+      console.log('MongoDB update - User ID:', user?.id);
+      
+      if (!token) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+
+      const updateData = {
         name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        address: formData.address,
-        profilePhoto: photoPreview, // Use the preview URL
-        // Additional fields
-        fullName: formData.fullName || formData.name,
-        dateOfBirth: formData.dateOfBirth,
-        gender: formData.gender,
-        nationality: formData.nationality,
-        maritalStatus: formData.maritalStatus
+        phoneNumber: formData.phone,
+        address: formData.address
       };
+      console.log('Sending profile update data:', updateData);
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const response = await fetch('http://localhost:5000/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updateData)
+      });
 
-      // Update the profile immediately in the dashboard
-      updateProfile(updatedProfile);
+      if (!response.ok) {
+        let errorMessage = 'Failed to update profile';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.msg || errorData.message || errorMessage;
+        } catch (parseError) {
+          // If response is not JSON (like HTML error page), use status text
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      console.log('MongoDB profile update successful:', data);
+      
+      // Update the user context with the new data
+      if (data.user) {
+        console.log('Updating user context with:', data.user);
+        // Use the profile picture from the backend response if available
+        if (data.user.profilePicture && !avatarUrl) {
+          // Check if the URL already includes the domain
+          avatarUrl = data.user.profilePicture.startsWith('http') 
+            ? data.user.profilePicture 
+            : `http://localhost:5000${data.user.profilePicture}`;
+          console.log('Using existing profile picture from backend:', avatarUrl);
+        }
+      }
+
+      // Update local profile state immediately
+      const updatedProfileData = {
+        ...formData,
+        // Use new avatar URL if uploaded, otherwise keep existing profile photo
+        profilePhoto: avatarUrl || userProfile.profilePhoto,
+      };
+      
+      updateProfile(updatedProfileData);
+
+      console.log('Profile update completed with avatar URL:', avatarUrl);
+      console.log('Final profile photo URL:', updatedProfileData.profilePhoto);
+      
+      // Force immediate UI update
+      setUserProfile(prev => {
+        const newProfile = {
+          ...prev,
+          ...updatedProfileData
+        };
+        console.log('Setting userProfile to:', newProfile);
+        return newProfile;
+      });
 
       showSuccess('Profile updated successfully!', 'Profile Updated');
       onClose();
     } catch (error) {
-      showError('Error updating profile. Please try again.', 'Update Failed');
+      console.error('Profile update error:', error);
+      
+      // Handle specific authentication errors
+      if (error.message.includes('session') || 
+          error.message.includes('Auth session missing') ||
+          error.message.includes('No active session') ||
+          error.message.includes('User not found')) {
+        showError('Your session has expired. Please log out and log in again to continue.', 'Session Expired');
+      } else if (error.message.includes('Authentication token not found')) {
+        showError('Authentication token missing. Please log out and log in again.', 'Authentication Error');
+      } else if (error.message.includes('Token is not valid')) {
+        showError('Your session is invalid. Please log out and log in again.', 'Invalid Session');
+      } else if (error.message.includes('Supabase is not configured')) {
+        showError('Application configuration error. Please contact support.', 'Configuration Error');
+      } else if (error.message.includes('Server error')) {
+        showError('Server error occurred. Please try again later.', 'Server Error');
+      } else {
+        showError(error.message || 'Error updating profile. Please try again.', 'Update Failed');
+      }
     } finally {
       setLoading(false);
     }
@@ -535,99 +865,64 @@ function EditProfileModal({ userProfile, updateProfile, onClose, showSuccess, sh
             </div>
 
             {/* Form Fields */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
+            <ValidatedInput
+              label="Full Name"
+              name="name"
+              type="text"
+              value={formData.name}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('name')}
+              isValid={isFieldValid('name')}
+              required
+              placeholder="Enter your full name"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
+            <ValidatedInput
+              label="Email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('email')}
+              isValid={isFieldValid('email')}
+              required
+              disabled={true}
+              placeholder="Email cannot be changed"
+              helperText="Email address cannot be modified for security reasons"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="+91 9876543210"
-              />
-            </div>
+            <ValidatedInput
+              label="Phone Number"
+              name="phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(name, value) => {
+                // Filter out alphabets and unwanted special characters before setting value
+                const filteredValue = value.replace(/[^0-9\s\-\(\)\+]/g, '');
+                handleFieldChange(name, filteredValue);
+              }}
+              onBlur={handleFieldBlur}
+              error={getFieldError('phone')}
+              isValid={isFieldValid('phone')}
+              placeholder="Enter your phone number"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-              <textarea
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows="3"
-                placeholder="Enter your address"
-              />
-            </div>
+            <ValidatedTextarea
+              label="Address"
+              name="address"
+              value={formData.address}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('address')}
+              isValid={isFieldValid('address')}
+              rows={3}
+              placeholder="Enter your address"
+              helperText="Optional: Your residential address"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
-              <input
-                type="date"
-                value={formData.dateOfBirth}
-                onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select Gender</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Nationality</label>
-              <input
-                type="text"
-                value={formData.nationality}
-                onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="e.g., Indian"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Marital Status</label>
-              <select
-                value={formData.maritalStatus}
-                onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select Status</option>
-                <option value="single">Single</option>
-                <option value="married">Married</option>
-                <option value="divorced">Divorced</option>
-                <option value="widowed">Widowed</option>
-              </select>
-            </div>
 
             {/* Action Buttons */}
             <div className="flex space-x-4 pt-4">
@@ -640,7 +935,7 @@ function EditProfileModal({ userProfile, updateProfile, onClose, showSuccess, sh
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !isValid}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 {loading ? 'Updating...' : 'Update Profile'}
@@ -655,7 +950,28 @@ function EditProfileModal({ userProfile, updateProfile, onClose, showSuccess, sh
 
 // Schedule Visit Modal Component
 function ScheduleVisitModal({ onClose }) {
-  const [formData, setFormData] = useState({
+  const { showSuccess, showError } = useNotification();
+
+  // Define validation rules for visit scheduling
+  const validationRules = {
+    inmateName: validateName,
+    inmateId: validateInmateId,
+    visitDate: validateVisitDate,
+    visitTime: validateVisitTime,
+    relationship: validateRelationship,
+    purpose: validatePurpose
+  };
+
+  // Initialize form validation
+  const {
+    formData,
+    isValid,
+    handleFieldChange,
+    handleFieldBlur,
+    validateAllFields,
+    getFieldError,
+    isFieldValid
+  } = useFormValidation({
     inmateName: '',
     inmateId: '',
     visitDate: '',
@@ -663,20 +979,29 @@ function ScheduleVisitModal({ onClose }) {
     visitType: 'general',
     purpose: '',
     relationship: ''
-  });
+  }, validationRules);
+
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
+    // Validate all fields
+    const isFormValid = await validateAllFields();
+    if (!isFormValid) {
+      setLoading(false);
+      showError('Please fix all validation errors before submitting', 'Validation Error');
+      return;
+    }
+
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1500));
-      alert('Visit scheduled successfully! You will receive a confirmation email.');
+      showSuccess('Visit scheduled successfully! You will receive a confirmation email.', 'Visit Scheduled');
       onClose();
     } catch (error) {
-      alert('Error scheduling visit');
+      showError('Error scheduling visit. Please try again.', 'Scheduling Failed');
     } finally {
       setLoading(false);
     }
@@ -697,100 +1022,119 @@ function ScheduleVisitModal({ onClose }) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Inmate Name</label>
-              <input
-                type="text"
-                value={formData.inmateName}
-                onChange={(e) => setFormData({ ...formData, inmateName: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter inmate's full name"
-                required
-              />
-            </div>
+            <ValidatedInput
+              label="Inmate Name"
+              name="inmateName"
+              type="text"
+              value={formData.inmateName}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('inmateName')}
+              isValid={isFieldValid('inmateName')}
+              required
+              placeholder="Enter inmate's full name"
+              helperText="Full name of the inmate you wish to visit"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Inmate ID</label>
-              <input
-                type="text"
-                value={formData.inmateId}
-                onChange={(e) => setFormData({ ...formData, inmateId: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter inmate ID"
-                required
-              />
-            </div>
+            <ValidatedInput
+              label="Inmate ID"
+              name="inmateId"
+              type="text"
+              value={formData.inmateId}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('inmateId')}
+              isValid={isFieldValid('inmateId')}
+              required
+              placeholder="Enter inmate ID (e.g., ABC123456)"
+              helperText="6-12 character alphanumeric ID"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Relationship</label>
-              <select
-                value={formData.relationship}
-                onChange={(e) => setFormData({ ...formData, relationship: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select relationship</option>
-                <option value="family">Family Member</option>
-                <option value="friend">Friend</option>
-                <option value="lawyer">Legal Representative</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
+            <ValidatedSelect
+              label="Relationship"
+              name="relationship"
+              value={formData.relationship}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('relationship')}
+              isValid={isFieldValid('relationship')}
+              required
+              options={[
+                { value: 'father', label: 'Father' },
+                { value: 'mother', label: 'Mother' },
+                { value: 'spouse', label: 'Spouse' },
+                { value: 'child', label: 'Child' },
+                { value: 'sibling', label: 'Sibling' },
+                { value: 'friend', label: 'Friend' },
+                { value: 'lawyer', label: 'Legal Representative' },
+                { value: 'other', label: 'Other' }
+              ]}
+              placeholder="Select your relationship"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Visit Date</label>
-              <input
-                type="date"
-                value={formData.visitDate}
-                onChange={(e) => setFormData({ ...formData, visitDate: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                min={new Date().toISOString().split('T')[0]}
-                required
-              />
-            </div>
+            <ValidatedInput
+              label="Visit Date"
+              name="visitDate"
+              type="date"
+              value={formData.visitDate}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('visitDate')}
+              isValid={isFieldValid('visitDate')}
+              required
+              min={getMinDateForVisit()}
+              max={getMaxDateForVisit()}
+              helperText="Select a date within the next 3 months"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Visit Time</label>
-              <select
-                value={formData.visitTime}
-                onChange={(e) => setFormData({ ...formData, visitTime: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select time slot</option>
-                <option value="09:00">09:00 AM</option>
-                <option value="10:00">10:00 AM</option>
-                <option value="11:00">11:00 AM</option>
-                <option value="14:00">02:00 PM</option>
-                <option value="15:00">03:00 PM</option>
-                <option value="16:00">04:00 PM</option>
-              </select>
-            </div>
+            <ValidatedSelect
+              label="Visit Time"
+              name="visitTime"
+              value={formData.visitTime}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('visitTime')}
+              isValid={isFieldValid('visitTime')}
+              required
+              options={[
+                { value: '09:00', label: '09:00 AM' },
+                { value: '10:00', label: '10:00 AM' },
+                { value: '11:00', label: '11:00 AM' },
+                { value: '14:00', label: '02:00 PM' },
+                { value: '15:00', label: '03:00 PM' },
+                { value: '16:00', label: '04:00 PM' }
+              ]}
+              placeholder="Select time slot"
+              helperText="Available visiting hours: 9 AM - 5 PM"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Visit Type</label>
-              <select
-                value={formData.visitType}
-                onChange={(e) => setFormData({ ...formData, visitType: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="general">General Visit</option>
-                <option value="legal">Legal Visit</option>
-                <option value="medical">Medical Visit</option>
-              </select>
-            </div>
+            <ValidatedSelect
+              label="Visit Type"
+              name="visitType"
+              value={formData.visitType}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              options={[
+                { value: 'general', label: 'General Visit' },
+                { value: 'legal', label: 'Legal Visit' },
+                { value: 'medical', label: 'Medical Visit' }
+              ]}
+              helperText="Select the type of visit"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Purpose of Visit</label>
-              <textarea
-                value={formData.purpose}
-                onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows="3"
-                placeholder="Brief description of visit purpose"
-                required
-              />
-            </div>
+            <ValidatedTextarea
+              label="Purpose of Visit"
+              name="purpose"
+              value={formData.purpose}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('purpose')}
+              isValid={isFieldValid('purpose')}
+              required
+              rows={3}
+              placeholder="Brief description of visit purpose"
+              helperText="Minimum 5 characters required"
+            />
 
             {/* Action Buttons */}
             <div className="flex space-x-4 pt-4">
@@ -984,69 +1328,73 @@ function ViewHistoryModal({ onClose }) {
 
 // Reset Password Modal Component
 function ResetPasswordModal({ onClose, showSuccess, showError }) {
-  const [formData, setFormData] = useState({
+  // Define validation rules for password reset
+  const validationRules = {
+    currentPassword: (value) => !value ? 'Current password is required' : '',
+    newPassword: (value) => validatePassword(value),
+    confirmPassword: (value, formData) => {
+      return validateConfirmPassword(value, formData?.newPassword || '');
+    }
+  };
+
+  // Initialize form validation
+  const {
+    formData,
+    isValid,
+    handleFieldChange,
+    handleFieldBlur,
+    validateAllFields,
+    getFieldError,
+    isFieldValid
+  } = useFormValidation({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
-  });
+  }, validationRules);
+
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-
-  const validatePassword = (password) => {
-    const hasAlphabet = /[a-zA-Z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-    return password.length >= 8 && hasAlphabet && hasNumber && hasSymbol;
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setErrors({});
 
-    // Validation
-    const newErrors = {};
-
-    if (!formData.currentPassword) {
-      newErrors.currentPassword = 'Current password is required';
-    }
-
-    if (!formData.newPassword) {
-      newErrors.newPassword = 'New password is required';
-    } else if (!validatePassword(formData.newPassword)) {
-      newErrors.newPassword = 'Password must be 8+ characters with letters, numbers, and symbols';
-    }
-
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your new password';
-    } else if (formData.newPassword !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    // Validate all fields
+    const isFormValid = await validateAllFields();
+    if (!isFormValid) {
       setLoading(false);
+      showError('Please fix all validation errors before submitting', 'Validation Error');
       return;
     }
 
     try {
-      // Simulate API call to reset password
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const token = sessionStorage.getItem('token');
 
-      showSuccess('Password updated successfully!', 'Password Changed');
-      onClose();
+      const response = await fetch('http://localhost:5000/api/user/change-password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          currentPassword: formData.currentPassword,
+          newPassword: formData.newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        showSuccess('Password updated successfully!', 'Password Changed');
+        onClose();
+      } else {
+        showError(data.msg || 'Failed to change password', 'Password Change Failed');
+      }
     } catch (error) {
-      showError('Error updating password. Please try again.', 'Update Failed');
+      console.error('Password update error:', error);
+      showError('Network error. Please try again.', 'Connection Error');
     } finally {
       setLoading(false);
     }
@@ -1067,68 +1415,45 @@ function ResetPasswordModal({ onClose, showSuccess, showError }) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Current Password
-              </label>
-              <input
-                type="password"
-                name="currentPassword"
-                value={formData.currentPassword}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all ${
-                  errors.currentPassword
-                    ? 'border-red-500 focus:ring-red-500'
-                    : 'border-gray-300 focus:ring-blue-500'
-                }`}
-                placeholder="Enter current password"
-              />
-              {errors.currentPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.currentPassword}</p>
-              )}
-            </div>
+            <ValidatedInput
+              label="Current Password"
+              name="currentPassword"
+              type="password"
+              value={formData.currentPassword}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('currentPassword')}
+              isValid={isFieldValid('currentPassword')}
+              required
+              placeholder="Enter current password"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                New Password
-              </label>
-              <input
-                type="password"
-                name="newPassword"
-                value={formData.newPassword}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all ${
-                  errors.newPassword
-                    ? 'border-red-500 focus:ring-red-500'
-                    : 'border-gray-300 focus:ring-blue-500'
-                }`}
-                placeholder="Enter new password"
-              />
-              {errors.newPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.newPassword}</p>
-              )}
-            </div>
+            <ValidatedInput
+              label="New Password"
+              name="newPassword"
+              type="password"
+              value={formData.newPassword}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('newPassword')}
+              isValid={isFieldValid('newPassword')}
+              required
+              placeholder="Enter new password"
+              helperText="Password must be 8+ characters with letters, numbers, and symbols"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm New Password
-              </label>
-              <input
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all ${
-                  errors.confirmPassword
-                    ? 'border-red-500 focus:ring-red-500'
-                    : 'border-gray-300 focus:ring-blue-500'
-                }`}
-                placeholder="Confirm new password"
-              />
-              {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
-              )}
-            </div>
+            <ValidatedInput
+              label="Confirm New Password"
+              name="confirmPassword"
+              type="password"
+              value={formData.confirmPassword}
+              onChange={handleFieldChange}
+              onBlur={handleFieldBlur}
+              error={getFieldError('confirmPassword')}
+              isValid={isFieldValid('confirmPassword')}
+              required
+              placeholder="Confirm new password"
+            />
 
             <div className="flex gap-3 pt-4">
               <button

@@ -20,6 +20,7 @@ export const validatePhoneNumber = (phone) => {
   // Remove all non-digit characters for validation
   const digitsOnly = phone.replace(/\D/g, '');
   if (digitsOnly.length !== 10) return 'Phone number must be exactly 10 digits';
+  if (/^[1-5]/.test(digitsOnly)) return 'Phone number cannot start with 1, 2, 3, 4, or 5';
   if (!/^[6-9]/.test(digitsOnly)) return 'Phone number must start with 6, 7, 8, or 9';
   return '';
 };
@@ -62,8 +63,7 @@ export const validateRequiredDateOfBirth = (dateStr) => {
 export const validatePassword = (password) => {
   if (!password) return 'Password is required';
   if (password.length < 8) return 'Password must be at least 8 characters long';
-  if (!/(?=.*[a-z])/.test(password)) return 'Password must contain at least one lowercase letter';
-  if (!/(?=.*[A-Z])/.test(password)) return 'Password must contain at least one uppercase letter';
+  if (!/(?=.*[a-zA-Z])/.test(password)) return 'Password must contain at least one letter';
   if (!/(?=.*\d)/.test(password)) return 'Password must contain at least one number';
   if (!/(?=.*[@$!%*?&])/.test(password)) return 'Password must contain at least one special character (@$!%*?&)';
   return '';
@@ -148,6 +148,12 @@ export const formatPhoneNumber = (value) => {
   return digitsOnly.slice(0, 10);
 };
 
+// Utility function to filter phone input (prevent alphabets and unwanted special characters)
+export const filterPhoneInput = (value) => {
+  // Allow only digits, spaces, hyphens, parentheses, and plus sign
+  return value.replace(/[^0-9\s\-\(\)\+]/g, '');
+};
+
 // Utility function to get max date for 18+ validation
 export const getMaxDateFor18Plus = () => {
   const date = new Date();
@@ -208,6 +214,92 @@ export const visitScheduleValidationRules = {
   purpose: validatePurpose
 };
 
+// User role validation
+export const validateRole = (role) => {
+  const validRoles = ['admin', 'warden', 'visitor'];
+  if (!role) return 'Role is required';
+  if (!validRoles.includes(role)) return 'Please select a valid role';
+  return '';
+};
+
+// User status validation
+export const validateUserStatus = (isActive) => {
+  if (typeof isActive !== 'boolean') return 'User status must be specified';
+  return '';
+};
+
+// Password validation for editing (optional)
+export const validateOptionalPassword = (password) => {
+  if (!password) return ''; // Password is optional when editing
+  return validatePassword(password);
+};
+
+// Email uniqueness validation (to be used with API call)
+export const validateEmailUniqueness = async (email, userId = null) => {
+  if (!email) return 'Email is required';
+  
+  const basicValidation = validateEmail(email);
+  if (basicValidation) return basicValidation;
+  
+  try {
+    const response = await fetch(`http://localhost:5000/api/admin/check-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ email, userId })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (!data.available) {
+        return 'This email is already registered';
+      }
+    }
+  } catch (error) {
+    console.error('Error checking email uniqueness:', error);
+    // Don't block form submission if API call fails
+  }
+  
+  return '';
+};
+
+// Phone number validation for users (optional)
+export const validateUserPhone = (phone) => {
+  if (!phone || !phone.trim()) return ''; // Phone is optional for users
+  
+  // Since we're filtering input in real-time, we don't need to show these errors
+  // The filtering prevents invalid characters from being entered
+  
+  return validatePhoneNumber(phone);
+};
+
+// Address validation for users (optional)
+export const validateUserAddress = (address) => {
+  if (!address || !address.trim()) return ''; // Address is optional for users
+  if (address.trim().length < 5) return 'Address must be at least 5 characters if provided';
+  if (address.trim().length > 200) return 'Address must be less than 200 characters';
+  return '';
+};
+
+// Gender validation (optional)
+export const validateGender = (gender) => {
+  if (!gender || !gender.trim()) return ''; // Gender is optional
+  const validGenders = ['male', 'female', 'other'];
+  if (!validGenders.includes(gender.toLowerCase())) return 'Please select a valid gender';
+  return '';
+};
+
+// Nationality validation (optional)
+export const validateNationality = (nationality) => {
+  if (!nationality || !nationality.trim()) return ''; // Nationality is optional
+  if (nationality.trim().length < 2) return 'Nationality must be at least 2 characters if provided';
+  if (nationality.trim().length > 50) return 'Nationality must be less than 50 characters';
+  if (!/^[a-zA-Z\s-']+$/.test(nationality.trim())) return 'Nationality can only contain letters, spaces, hyphens, and apostrophes';
+  return '';
+};
+
 export const registrationValidationRules = {
   name: validateName,
   email: validateEmail,
@@ -215,4 +307,72 @@ export const registrationValidationRules = {
   phoneNumber: validateRequiredPhoneNumber,
   dateOfBirth: validateRequiredDateOfBirth,
   address: validateAddress
+};
+
+// User management validation rules (for editing - email cannot be changed)
+export const userValidationRules = {
+  name: validateName,
+  email: () => '', // Email cannot be changed during editing
+  password: validateOptionalPassword,
+  role: validateRole,
+  phone: validateUserPhone,
+  address: validateUserAddress,
+  gender: validateGender,
+  nationality: validateNationality,
+  isActive: validateUserStatus
+};
+
+// User creation validation rules (password required)
+export const userCreationValidationRules = {
+  name: validateName,
+  email: validateEmail,
+  password: validatePassword,
+  role: validateRole,
+  phone: validateUserPhone,
+  address: validateUserAddress,
+  gender: validateGender,
+  nationality: validateNationality,
+  isActive: validateUserStatus
+};
+
+// Warden-specific validation functions
+export const validateExperience = (experience) => {
+  if (!experience || experience === '') return ''; // Optional field
+  const exp = parseInt(experience);
+  if (isNaN(exp)) return 'Experience must be a valid number';
+  if (exp < 0) return 'Experience cannot be negative';
+  if (exp > 50) return 'Experience cannot exceed 50 years';
+  return '';
+};
+
+export const validateSpecialization = (specialization) => {
+  if (!specialization || !specialization.trim()) return ''; // Optional field
+  if (specialization.trim().length < 3) return 'Specialization must be at least 3 characters if provided';
+  if (specialization.trim().length > 100) return 'Specialization must be less than 100 characters';
+  if (!/^[a-zA-Z\s,.-]+$/.test(specialization.trim())) return 'Specialization can only contain letters, spaces, commas, periods, and hyphens';
+  return '';
+};
+
+export const validateShift = (shift) => {
+  if (!shift) return 'Shift is required';
+  const validShifts = ['day', 'night', 'rotating'];
+  if (!validShifts.includes(shift)) return 'Please select a valid shift';
+  return '';
+};
+
+export const validateAssignedBlocks = (assignedBlocks) => {
+  if (!assignedBlocks || assignedBlocks.length === 0) return ''; // Optional field
+  if (assignedBlocks.length > 10) return 'Cannot assign more than 10 blocks to a single warden';
+  return '';
+};
+
+// Warden validation rules
+export const wardenValidationRules = {
+  name: validateName,
+  email: validateEmail,
+  phone: validateUserPhone,
+  experience: validateExperience,
+  specialization: validateSpecialization,
+  shift: validateShift,
+  assignedBlocks: validateAssignedBlocks
 };

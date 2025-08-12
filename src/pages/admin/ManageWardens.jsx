@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/AdminLayout';
 import { FaUserTie, FaPlus, FaEdit, FaTrash, FaBuilding, FaEye } from 'react-icons/fa';
+import ValidatedInput, { ValidatedSelect } from '../../components/ValidatedInput';
+import { useFormValidation } from '../../hooks/useFormValidation';
+import {
+  validateName,
+  validateEmail,
+  validateUserPhone,
+  validateExperience,
+  validateSpecialization,
+  validateShift,
+  validateAssignedBlocks,
+  wardenValidationRules,
+  formatPhoneNumber,
+  filterPhoneInput
+} from '../../utils/validation';
 
 const ManageWardens = () => {
   const [wardens, setWardens] = useState([]);
@@ -8,16 +22,30 @@ const ManageWardens = () => {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingWarden, setEditingWarden] = useState(null);
-  const [formData, setFormData] = useState({
+  const [submitLoading, setSubmitLoading] = useState(false);
+
+  // Form validation setup
+  const {
+    formData,
+    errors,
+    touched,
+    isValid,
+    handleFieldChange,
+    handleFieldBlur,
+    validateAllFields,
+    getFieldError,
+    isFieldValid,
+    resetForm,
+    updateFormData
+  } = useFormValidation({
     name: '',
     email: '',
     phone: '',
-    employeeId: '',
     assignedBlocks: [],
     shift: 'day',
     experience: '',
     specialization: ''
-  });
+  }, wardenValidationRules);
 
   useEffect(() => {
     fetchWardens();
@@ -34,6 +62,7 @@ const ManageWardens = () => {
       
       if (response.ok) {
         const data = await response.json();
+        console.log('Fetched wardens data:', data);
         if (data.success) {
           setWardens(data.wardens);
         }
@@ -66,6 +95,18 @@ const ManageWardens = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitLoading(true);
+
+    // Validate all fields
+    const isFormValid = await validateAllFields();
+    console.log('Form validation result:', isFormValid);
+    console.log('Form errors:', errors);
+    if (!isFormValid) {
+      setSubmitLoading(false);
+      alert('Please fix all validation errors before submitting. Errors: ' + JSON.stringify(errors));
+      return;
+    }
+
     try {
       const url = editingWarden 
         ? `http://localhost:5000/api/admin/wardens/${editingWarden._id}`
@@ -73,6 +114,9 @@ const ManageWardens = () => {
       
       const method = editingWarden ? 'PUT' : 'POST';
       
+      console.log('Submitting warden data:', formData);
+      
+      // Employee ID will be auto-generated on the backend
       const response = await fetch(url, {
         method,
         headers: {
@@ -82,36 +126,36 @@ const ManageWardens = () => {
         body: JSON.stringify(formData)
       });
 
-      if (response.ok) {
+      const data = await response.json();
+      console.log('Server response:', data);
+
+      if (response.ok && data.success) {
         fetchWardens();
         setShowAddModal(false);
         setEditingWarden(null);
-        setFormData({
-          name: '',
-          email: '',
-          phone: '',
-          employeeId: '',
-          assignedBlocks: [],
-          shift: 'day',
-          experience: '',
-          specialization: ''
-        });
+        resetForm();
+        alert(editingWarden ? 'Warden updated successfully!' : 'Warden created successfully!');
+      } else {
+        console.error('Server error:', data);
+        alert(data.msg || 'Failed to save warden');
       }
     } catch (error) {
       console.error('Error saving warden:', error);
+      alert('Network error. Please try again.');
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
   const handleEdit = (warden) => {
     setEditingWarden(warden);
-    setFormData({
+    updateFormData({
       name: warden.name,
       email: warden.email,
-      phone: warden.phone || '',
-      employeeId: warden.wardenDetails?.employeeId || '',
+      phone: warden.phoneNumber || '',
       assignedBlocks: warden.wardenDetails?.assignedBlocks?.map(block => block._id) || [],
       shift: warden.wardenDetails?.shift || 'day',
-      experience: warden.wardenDetails?.experience || '',
+      experience: warden.wardenDetails?.experience?.toString() || '',
       specialization: warden.wardenDetails?.specialization || ''
     });
     setShowAddModal(true);
@@ -127,11 +171,17 @@ const ManageWardens = () => {
           }
         });
 
-        if (response.ok) {
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
           fetchWardens();
+          alert('Warden deleted successfully!');
+        } else {
+          alert(data.msg || 'Failed to delete warden');
         }
       } catch (error) {
         console.error('Error deleting warden:', error);
+        alert('Network error. Please try again.');
       }
     }
   };
@@ -216,11 +266,11 @@ const ManageWardens = () => {
                       warden.wardenDetails?.shift === 'night' ? 'bg-blue-100 text-blue-800' :
                       'bg-green-100 text-green-800'
                     }`}>
-                      {warden.wardenDetails?.shift || 'day'}
+                      {(warden.wardenDetails?.shift || 'day').charAt(0).toUpperCase() + (warden.wardenDetails?.shift || 'day').slice(1)} Shift
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {warden.wardenDetails?.experience || 'N/A'} years
+                    {warden.wardenDetails?.experience !== undefined ? `${warden.wardenDetails.experience} years` : 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -262,61 +312,77 @@ const ManageWardens = () => {
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    required
-                  />
-                </div>
+                <ValidatedInput
+                  label="Full Name"
+                  name="name"
+                  type="text"
+                  value={formData.name}
+                  onChange={handleFieldChange}
+                  onBlur={handleFieldBlur}
+                  error={getFieldError('name')}
+                  isValid={isFieldValid('name')}
+                  required
+                  placeholder="Enter warden's full name"
+                />
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    required
-                  />
-                  <p className="mt-1 text-sm text-gray-500">
-                    A temporary password will be auto-generated and sent to this email address.
-                  </p>
-                </div>
+                <ValidatedInput
+                  label="Email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleFieldChange}
+                  onBlur={handleFieldBlur}
+                  error={getFieldError('email')}
+                  isValid={isFieldValid('email')}
+                  required
+                  placeholder="Enter email address"
+                  helperText={editingWarden ? "Email can be updated if needed" : "A temporary password will be auto-generated and sent to this email address"}
+                />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
+                <ValidatedInput
+                  label="Phone Number"
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={handleFieldChange}
+                  onBlur={handleFieldBlur}
+                  error={getFieldError('phone')}
+                  isValid={isFieldValid('phone')}
+                  placeholder="Enter 10-digit phone number"
+                  helperText="Optional: Contact phone number (10 digits)"
+                  maxLength="10"
+                />
                 
-                <div>
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Employee ID</label>
-                  <input
-                    type="text"
-                    value={formData.employeeId}
-                    onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
+                  <p className="text-sm text-gray-600 italic">
+                    {editingWarden ? 
+                      `Current ID: ${editingWarden.wardenDetails?.employeeId || 'Not assigned'}` : 
+                      'Will be auto-generated upon creation'
+                    }
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Employee ID is automatically generated by the system</p>
                 </div>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Blocks</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Assigned Blocks
+                </label>
                 <select
                   multiple
                   value={formData.assignedBlocks}
-                  onChange={(e) => setFormData({...formData, assignedBlocks: Array.from(e.target.selectedOptions, option => option.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  onChange={(e) => {
+                    const selectedBlocks = Array.from(e.target.selectedOptions, option => option.value);
+                    handleFieldChange('assignedBlocks', selectedBlocks);
+                  }}
+                  onBlur={() => handleFieldBlur('assignedBlocks')}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors ${
+                    getFieldError('assignedBlocks') ? 'border-red-500' : 
+                    isFieldValid('assignedBlocks') ? 'border-green-500' : 'border-gray-300'
+                  }`}
                   size="4"
                 >
                   {blocks.map((block) => (
@@ -325,44 +391,57 @@ const ManageWardens = () => {
                     </option>
                   ))}
                 </select>
-                <p className="text-sm text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple blocks</p>
+                {getFieldError('assignedBlocks') && (
+                  <p className="text-sm text-red-600 mt-1">{getFieldError('assignedBlocks')}</p>
+                )}
+                <p className="text-sm text-gray-500 mt-1">Optional: Hold Ctrl/Cmd to select multiple blocks</p>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Shift</label>
-                  <select
-                    value={formData.shift}
-                    onChange={(e) => setFormData({...formData, shift: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="day">Day Shift</option>
-                    <option value="night">Night Shift</option>
-                    <option value="rotating">Rotating Shift</option>
-                  </select>
-                </div>
+                <ValidatedSelect
+                  label="Shift"
+                  name="shift"
+                  value={formData.shift}
+                  onChange={handleFieldChange}
+                  onBlur={handleFieldBlur}
+                  error={getFieldError('shift')}
+                  isValid={isFieldValid('shift')}
+                  required
+                  options={[
+                    { value: 'day', label: 'Day Shift' },
+                    { value: 'night', label: 'Night Shift' },
+                    { value: 'rotating', label: 'Rotating Shift' }
+                  ]}
+                />
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Experience (Years)</label>
-                  <input
-                    type="number"
-                    value={formData.experience}
-                    onChange={(e) => setFormData({...formData, experience: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Specialization</label>
-                <input
-                  type="text"
-                  value={formData.specialization}
-                  onChange={(e) => setFormData({...formData, specialization: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="e.g., Security, Rehabilitation, Administration"
+                <ValidatedInput
+                  label="Experience (Years)"
+                  name="experience"
+                  type="number"
+                  value={formData.experience}
+                  onChange={handleFieldChange}
+                  onBlur={handleFieldBlur}
+                  error={getFieldError('experience')}
+                  isValid={isFieldValid('experience')}
+                  placeholder="Enter years of experience (optional)"
+                  helperText="Optional: Years of relevant experience"
+                  min="0"
+                  max="50"
                 />
               </div>
+              
+              <ValidatedInput
+                label="Specialization"
+                name="specialization"
+                type="text"
+                value={formData.specialization}
+                onChange={handleFieldChange}
+                onBlur={handleFieldBlur}
+                error={getFieldError('specialization')}
+                isValid={isFieldValid('specialization')}
+                placeholder="e.g., Security, Rehabilitation, Administration"
+                helperText="Optional: Area of expertise or specialization"
+              />
               
               <div className="flex gap-4 pt-4">
                 <button
@@ -370,26 +449,26 @@ const ManageWardens = () => {
                   onClick={() => {
                     setShowAddModal(false);
                     setEditingWarden(null);
-                    setFormData({
-                      name: '',
-                      email: '',
-                      phone: '',
-                      employeeId: '',
-                      assignedBlocks: [],
-                      shift: 'day',
-                      experience: '',
-                      specialization: ''
-                    });
+                    resetForm();
                   }}
-                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition-colors"
+                  disabled={submitLoading}
+                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
+                  disabled={submitLoading}
+                  className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {editingWarden ? 'Update' : 'Create'} Warden
+                  {submitLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      {editingWarden ? 'Updating...' : 'Creating...'}
+                    </>
+                  ) : (
+                    `${editingWarden ? 'Update' : 'Create'} Warden`
+                  )}
                 </button>
               </div>
             </form>

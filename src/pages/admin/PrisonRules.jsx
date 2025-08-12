@@ -131,11 +131,21 @@ const PrisonRules = () => {
         resetForm();
         showMessage('success', 'Rule saved successfully!');
       } else {
-        const errorData = await response.json();
-        showMessage('error', 'Error saving rule: ' + (errorData.message || 'Unknown error'));
+        let errorText = '';
+        try {
+          const errJson = await response.clone().json();
+          errorText = errJson.message || JSON.stringify(errJson);
+        } catch {
+          try {
+            errorText = await response.clone().text();
+          } catch {
+            errorText = 'Unknown server error';
+          }
+        }
+        showMessage('error', `Error saving rule: ${response.status} ${response.statusText || ''} - ${errorText}`);
       }
     } catch (error) {
-      showMessage('error', 'Error saving rule: ' + error.message);
+      showMessage('error', 'Network error saving rule: ' + error.message);
     }
   };
 
@@ -183,6 +193,20 @@ const PrisonRules = () => {
 
         if (response.ok) {
           fetchRules();
+          showMessage('success', 'Rule deleted successfully');
+        } else {
+          let errorText = '';
+          try {
+            const errJson = await response.clone().json();
+            errorText = errJson.message || JSON.stringify(errJson);
+          } catch {
+            try {
+              errorText = await response.clone().text();
+            } catch {
+              errorText = 'Unknown server error';
+            }
+          }
+          showMessage('error', `Error deleting rule: ${response.status} ${response.statusText || ''} - ${errorText}`);
         }
       } catch (error) {
   
