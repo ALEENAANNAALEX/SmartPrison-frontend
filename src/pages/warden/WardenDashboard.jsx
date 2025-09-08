@@ -6,6 +6,7 @@ import {
   FaUsers,
   FaUserTie,
   FaFileAlt,
+  FaGavel,
   FaCalendarAlt,
   FaChartLine,
   FaUserClock,
@@ -40,6 +41,8 @@ const WardenDashboard = () => {
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffNotification, setStaffNotification] = useState(null);
+  const [staffImage, setStaffImage] = useState(null);
+  const [staffImagePreview, setStaffImagePreview] = useState(null);
 
   // Change password state
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -51,7 +54,8 @@ const WardenDashboard = () => {
     position: '',
     department: '',
     assignedBlock: '',
-    experience: ''
+    experience: '',
+    shift: 'day'
   });
 
   useEffect(() => {
@@ -153,6 +157,50 @@ const WardenDashboard = () => {
     </div>
   );
 
+  // Handle image selection
+  const handleImageSelect = (e) => {
+    console.log('Image selection triggered!', e.target.files);
+    const file = e.target.files[0];
+    if (file) {
+      console.log('File selected:', file.name, file.type, file.size);
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setStaffNotification({
+          type: 'error',
+          message: '❌ Please select a valid image file'
+        });
+        setTimeout(() => setStaffNotification(null), 5000);
+        return;
+      }
+      
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        setStaffNotification({
+          type: 'error',
+          message: '❌ Image size must be less than 5MB'
+        });
+        setTimeout(() => setStaffNotification(null), 5000);
+        return;
+      }
+      
+      setStaffImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setStaffImagePreview(e.target.result);
+        console.log('Image preview created!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Remove selected image
+  const removeImage = () => {
+    setStaffImage(null);
+    setStaffImagePreview(null);
+  };
+
   // Staff creation function
   const handleCreateStaff = async (e) => {
     e.preventDefault();
@@ -160,13 +208,26 @@ const WardenDashboard = () => {
 
     try {
       const token = sessionStorage.getItem('token');
+      
+      // Create FormData for file upload
+      const formData = new FormData();
+      
+      // Add form fields
+      Object.keys(staffFormData).forEach(key => {
+        formData.append(key, staffFormData[key]);
+      });
+      
+      // Add image if selected
+      if (staffImage) {
+        formData.append('staffImage', staffImage);
+      }
+
       const response = await fetch('http://localhost:5000/api/warden/create-staff', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(staffFormData)
+        body: formData
       });
 
       const data = await response.json();
@@ -187,8 +248,11 @@ const WardenDashboard = () => {
           position: '',
           department: '',
           assignedBlock: '',
-          experience: ''
+          experience: '',
+          shift: 'day'
         });
+        setStaffImage(null);
+        setStaffImagePreview(null);
         setShowStaffModal(false);
         setTimeout(() => setStaffNotification(null), 10000);
       } else {
@@ -433,156 +497,302 @@ const WardenDashboard = () => {
       {/* Staff Creation Modal */}
       {showStaffModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[98vh] overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-gray-900">Add New Staff Member</h3>
-                <button
-                  onClick={() => setShowStaffModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <FaTimes className="h-6 w-6" />
-                </button>
+                <div>
+                  <h3 className="text-2xl font-bold">Add New Staff Member</h3>
+                  <p className="text-indigo-100 mt-1">Fill in the details to create a new staff account</p>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={() => setShowStaffModal(false)}
+                    className="text-indigo-100 hover:text-white transition-colors px-4 py-2 rounded-lg hover:bg-white/10"
+                  >
+                    ← Back to list
+                  </button>
+                  <button
+                    onClick={() => setShowStaffModal(false)}
+                    className="text-white hover:text-indigo-200 transition-colors p-2 hover:bg-white/10 rounded-lg"
+                  >
+                    <FaTimes className="h-6 w-6" />
+                  </button>
+                </div>
               </div>
             </div>
 
-            <form onSubmit={handleCreateStaff} className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
-                  <input
-                    type="text"
-                    value={staffFormData.name}
-                    onChange={(e) => setStaffFormData({...staffFormData, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Enter full name"
-                    required
-                  />
+            <form onSubmit={handleCreateStaff} className="p-6 overflow-y-auto max-h-[calc(98vh-120px)]">
+              <div className="space-y-8">
+                {/* Personal Information Section */}
+                <div className="bg-gray-50 rounded-xl p-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
+                      <FaUserTie className="text-indigo-600" />
+                    </div>
+                    Personal Information
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
+                      <input
+                        type="text"
+                        value={staffFormData.name}
+                        onChange={(e) => setStaffFormData({...staffFormData, name: e.target.value})}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                        placeholder="Enter full name"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
+                      <input
+                        type="email"
+                        value={staffFormData.email}
+                        onChange={(e) => setStaffFormData({...staffFormData, email: e.target.value})}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                        placeholder="Enter email address"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
+                      <input
+                        type="tel"
+                        value={staffFormData.phone}
+                        onChange={(e) => setStaffFormData({...staffFormData, phone: e.target.value})}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                        placeholder="Enter 10-digit phone number"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Employee ID</label>
+                      <div className="bg-gray-100 px-4 py-3 rounded-lg text-sm text-gray-600">
+                        Employee ID will be auto-generated (e.g., S001) after creation
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
-                  <input
-                    type="email"
-                    value={staffFormData.email}
-                    onChange={(e) => setStaffFormData({...staffFormData, email: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Enter email address"
-                    required
-                  />
+                {/* Work Information Section */}
+                <div className="bg-gray-50 rounded-xl p-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                      <FaGavel className="text-green-600" />
+                    </div>
+                    Work Information
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Position *</label>
+                      <select
+                        value={staffFormData.position}
+                        onChange={(e) => setStaffFormData({...staffFormData, position: e.target.value})}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                        required
+                      >
+                        <option value="">Select position</option>
+                        <option value="Security Officer">Security Officer</option>
+                        <option value="Correctional Officer">Correctional Officer</option>
+                        <option value="Medical Officer">Medical Officer</option>
+                        <option value="Rehabilitation Counselor">Rehabilitation Counselor</option>
+                        <option value="Administrative Staff">Administrative Staff</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Department *</label>
+                      <select
+                        value={staffFormData.department}
+                        onChange={(e) => setStaffFormData({...staffFormData, department: e.target.value})}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                        required
+                      >
+                        <option value="">Select department</option>
+                        <option value="Security">Security</option>
+                        <option value="Medical">Medical</option>
+                        <option value="Rehabilitation">Rehabilitation</option>
+                        <option value="Administration">Administration</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Block *</label>
+                      <select
+                        value={staffFormData.assignedBlock}
+                        onChange={(e) => setStaffFormData({...staffFormData, assignedBlock: e.target.value})}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                        required
+                      >
+                        <option value="">Select block</option>
+                        <option value="Block A">Block A</option>
+                        <option value="Block B">Block B</option>
+                        <option value="Block C">Block C</option>
+                        <option value="Medical Wing">Medical Wing</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Shift *</label>
+                      <select
+                        value={staffFormData.shift}
+                        onChange={(e) => setStaffFormData({...staffFormData, shift: e.target.value})}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                        required
+                      >
+                        <option value="day">Day Shift</option>
+                        <option value="night">Night Shift</option>
+                        <option value="rotating">Rotating Shift</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Experience (years) *</label>
+                    <input
+                      type="number"
+                      value={staffFormData.experience}
+                      onChange={(e) => setStaffFormData({...staffFormData, experience: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                      placeholder="Enter years of experience (e.g., 5)"
+                      min="0"
+                      max="50"
+                      required
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
-                  <input
-                    type="tel"
-                    value={staffFormData.phone}
-                    onChange={(e) => setStaffFormData({...staffFormData, phone: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Enter phone number"
-                    required
-                  />
+                {/* Profile Image Section - MADE MORE PROMINENT */}
+                <div className="bg-gradient-to-r from-purple-100 to-pink-100 border-4 border-purple-400 rounded-2xl p-8 shadow-2xl">
+                  <h4 className="text-2xl font-bold text-purple-900 mb-8 flex items-center justify-center">
+                    <div className="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center mr-4">
+                      <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    📸 PROFILE IMAGE UPLOAD
+                    <span className="ml-4 text-lg font-normal text-purple-700 bg-purple-200 px-4 py-2 rounded-full border-2 border-purple-300">(Optional)</span>
+                  </h4>
+                  
+                  {/* Test Button */}
+                  <div className="text-center mb-6">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.log('Test button clicked!');
+                        alert('Image section is working! Check console for details.');
+                      }}
+                      className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+                    >
+                      🧪 TEST IMAGE SECTION
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Image Preview */}
+                    <div className="flex flex-col items-center">
+                      <h5 className="text-lg font-semibold text-gray-700 mb-4">Image Preview</h5>
+                      {staffImagePreview ? (
+                        <div className="relative">
+                          <img
+                            src={staffImagePreview}
+                            alt="Profile preview"
+                            className="w-40 h-40 object-cover rounded-2xl border-4 border-purple-200 shadow-xl"
+                          />
+                          <button
+                            type="button"
+                            onClick={removeImage}
+                            className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-lg hover:bg-red-600 transition-colors shadow-lg font-bold"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-40 h-40 bg-gray-200 rounded-2xl flex items-center justify-center border-4 border-dashed border-gray-300">
+                          <div className="text-center">
+                            <svg className="w-16 h-16 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <p className="text-sm text-gray-500 font-medium">No image selected</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* File Input */}
+                    <div className="flex flex-col">
+                      <h5 className="text-xl font-bold text-purple-800 mb-6 text-center">UPLOAD IMAGE HERE</h5>
+                      <label className="flex flex-col items-center justify-center w-full h-48 border-4 border-purple-500 border-dashed rounded-3xl cursor-pointer bg-gradient-to-br from-white to-purple-50 hover:from-purple-50 hover:to-purple-100 transition-all duration-300 group shadow-2xl hover:shadow-3xl transform hover:scale-105">
+                        <div className="flex flex-col items-center justify-center pt-8 pb-8">
+                          <svg className="w-20 h-20 mb-6 text-purple-500 group-hover:text-purple-700 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <p className="mb-3 text-xl text-purple-700 group-hover:text-purple-900 font-bold">
+                            <span className="text-2xl">📁</span> <span className="font-black">CLICK TO UPLOAD</span> <span className="text-2xl">📁</span>
+                          </p>
+                          <p className="text-lg text-purple-600 group-hover:text-purple-800 font-semibold mb-2">
+                            or drag and drop your image here
+                          </p>
+                          <p className="text-base text-purple-500 font-medium">PNG, JPG, JPEG up to 5MB</p>
+                        </div>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleImageSelect}
+                        />
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Employee ID *</label>
-                  <input
-                    type="text"
-                    value={staffFormData.employeeId}
-                    onChange={(e) => setStaffFormData({...staffFormData, employeeId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="Enter employee ID"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Position *</label>
-                  <select
-                    value={staffFormData.position}
-                    onChange={(e) => setStaffFormData({...staffFormData, position: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select position</option>
-                    <option value="Security Officer">Security Officer</option>
-                    <option value="Correctional Officer">Correctional Officer</option>
-                    <option value="Medical Officer">Medical Officer</option>
-                    <option value="Rehabilitation Counselor">Rehabilitation Counselor</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Department *</label>
-                  <select
-                    value={staffFormData.department}
-                    onChange={(e) => setStaffFormData({...staffFormData, department: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select department</option>
-                    <option value="Security">Security</option>
-                    <option value="Medical">Medical</option>
-                    <option value="Rehabilitation">Rehabilitation</option>
-                    <option value="Administration">Administration</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Block *</label>
-                  <select
-                    value={staffFormData.assignedBlock}
-                    onChange={(e) => setStaffFormData({...staffFormData, assignedBlock: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select block</option>
-                    <option value="Block A">Block A</option>
-                    <option value="Block B">Block B</option>
-                    <option value="Block C">Block C</option>
-                    <option value="Medical Wing">Medical Wing</option>
-                  </select>
+                {/* Password Information */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <FaKey className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div className="ml-3">
+                      <h4 className="text-sm font-medium text-blue-900">Password Information</h4>
+                      <p className="text-sm text-blue-700 mt-1">
+                        A secure password will be automatically generated and sent to the staff member's email address.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Experience *</label>
-                <textarea
-                  value={staffFormData.experience}
-                  onChange={(e) => setStaffFormData({...staffFormData, experience: e.target.value})}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Describe relevant experience"
-                  required
-                />
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">Password Information</h4>
-                <p className="text-sm text-blue-700">
-                  An 8-digit password will be automatically generated and sent to the staff member's email.
-                </p>
-              </div>
-
-              <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200 mt-8">
                 <button
                   type="button"
                   onClick={() => setShowStaffModal(false)}
-                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={staffLoading}
-                  className="flex items-center px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
                 >
                   {staffLoading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      Creating Staff...
+                    </>
                   ) : (
-                    <FaSave className="mr-2" />
+                    <>
+                      <FaSave className="mr-2" />
+                      Create Staff Member
+                    </>
                   )}
-                  {staffLoading ? 'Creating...' : 'Create Staff'}
                 </button>
               </div>
             </form>

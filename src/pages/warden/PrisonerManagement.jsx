@@ -401,13 +401,7 @@ const PrisonerManagement = () => {
             </select>
           </div>
 
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center space-x-2"
-          >
-            <FaPlus />
-            <span>Add New Prisoner</span>
-          </button>
+
         </div>
 
         {/* Statistics Cards */}

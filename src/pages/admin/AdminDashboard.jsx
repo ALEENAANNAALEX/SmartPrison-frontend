@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import AdminLayout from '../../components/AdminLayout';
+import React, { useState, useEffect } from 'react'; // React core + hooks for state/effect
+import AdminLayout from '../../components/AdminLayout'; // Common admin layout shell
 import {
   FaUsers,
   FaUserShield,
@@ -12,7 +12,13 @@ import {
   FaCalendarCheck,
   FaArrowUp,
   FaArrowDown
-} from 'react-icons/fa';
+} from 'react-icons/fa'; // Icons used in cards/quick actions/alerts
+
+// Section: Component blueprint
+// - State: stats, recentActivities, alerts, loading flag
+// - Effects: initial dashboard fetch on mount
+// - API: fetchDashboardData -> hits backend for aggregate stats and lists
+// - Render: summary cards, charts, alerts, quick actions
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -28,27 +34,62 @@ const AdminDashboard = () => {
   const [recentActivities, setRecentActivities] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pendingVisits, setPendingVisits] = useState([]);
 
   useEffect(() => {
     fetchDashboardData();
+    fetchPendingVisits();
   }, []);
+
+  const fetchPendingVisits = async () => {
+    try {
+      const token = sessionStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/visits/pending', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (res.ok && data?.pending) setPendingVisits(data.pending);
+    } catch (e) {
+      console.error('Error fetching pending visits:', e);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/admin/dashboard', {
-        headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('token')}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setStats(data.stats);
-          setRecentActivities(data.recentActivities || []);
-          setAlerts(data.alerts || []);
-        }
+      const token = sessionStorage.getItem('token');
+      // Use precise endpoints that exist in backend/routes/admin.js
+      const [statsRes, activityRes, alertsRes] = await Promise.all([
+        fetch('http://localhost:5000/api/admin/stats', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('http://localhost:5000/api/admin/recent-activity', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('http://localhost:5000/api/admin/pending-requests', { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+
+      const statsJson = statsRes.ok ? await statsRes.json() : null;
+      const activityJson = activityRes.ok ? await activityRes.json() : [];
+      const pendingJson = alertsRes.ok ? await alertsRes.json() : [];
+
+      if (statsJson) {
+        // Update only the fields provided by backend; keep demo values for the rest
+        setStats(prev => ({
+          ...prev,
+          totalPrisoners: statsJson.activeInmates ?? prev.totalPrisoners,
+          totalWardens: statsJson.totalStaff ?? prev.totalWardens,
+          totalUsers: statsJson.totalUsers ?? prev.totalUsers,
+          scheduledVisits: statsJson.totalVisits ?? prev.scheduledVisits
+        }));
       }
+
+      // Recent activities from endpoint returns simple array
+      setRecentActivities(Array.isArray(activityJson) ? activityJson : []);
+
+      // Use pending requests list as alert-like items
+      const mappedAlerts = Array.isArray(pendingJson)
+        ? pendingJson.map(pr => ({
+            type: 'warning',
+            title: 'Pending Visit Request',
+            message: `${pr.visitorName} -> ${pr.inmateName}`,
+            timestamp: pr.requestedDate || Date.now()
+          }))
+        : [];
+      setAlerts(mappedAlerts);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -115,7 +156,7 @@ const AdminDashboard = () => {
     },
     {
       title: 'Capacity Usage',
-      value: `${Math.round((stats.totalPrisoners / stats.capacity) * 100)}%`,
+      value: `${Math.round((stats.totalPrisoners / Math.max(stats.capacity || 1, 1)) * 100)}%`,
       icon: FaChartBar,
       color: 'pink',
       change: '+2.8%',
@@ -210,32 +251,47 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Alerts & Notifications */}
+        {/* Pending Visit Requests */}
         <div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Alerts & Notifications</h3>
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Pending Visit Requests</h3>
+              <button onClick={fetchPendingVisits} className="text-sm text-indigo-600 hover:underline">Refresh</button>
             </div>
             <div className="p-6">
-              {alerts.length > 0 ? (
-                <div className="space-y-4">
-                  {alerts.map((alert, index) => (
-                    <div key={index} className={`p-3 rounded-lg border-l-4 ${
-                      alert.type === 'critical' ? 'bg-red-50 border-red-400' :
-                      alert.type === 'warning' ? 'bg-yellow-50 border-yellow-400' :
-                      'bg-blue-50 border-blue-400'
-                    }`}>
-                      <div className="flex items-start">
-                        <FaExclamationTriangle className={`text-sm mt-0.5 mr-2 ${
-                          alert.type === 'critical' ? 'text-red-600' :
-                          alert.type === 'warning' ? 'text-yellow-600' :
-                          'text-blue-600'
-                        }`} />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{alert.title}</p>
-                          <p className="text-xs text-gray-600 mt-1">{alert.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">{new Date(alert.timestamp).toLocaleString()}</p>
-                        </div>
+              {pendingVisits.length > 0 ? (
+                <div className="space-y-3">
+                  {pendingVisits.map((req) => (
+                    <div key={req._id} className="border rounded-lg p-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {req.visitor?.name} → {req.prisoner ? `${req.prisoner.firstName} ${req.prisoner.lastName}` : '-'}
+                        </p>
+                        <p className="text-xs text-gray-600 mt-1">
+                          {new Date(req.visitDate).toISOString().slice(0,10)} at {req.visitTime}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            const token = sessionStorage.getItem('token');
+                            const res = await fetch(`http://localhost:5000/api/visits/${req._id}/approve`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
+                            if (res.ok) fetchPendingVisits();
+                          }}
+                          className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const token = sessionStorage.getItem('token');
+                            const res = await fetch(`http://localhost:5000/api/visits/${req._id}/reject`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } });
+                            if (res.ok) fetchPendingVisits();
+                          }}
+                          className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                        >
+                          Reject
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -243,7 +299,7 @@ const AdminDashboard = () => {
               ) : (
                 <div className="text-center py-8">
                   <FaExclamationTriangle className="text-4xl text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">No active alerts</p>
+                  <p className="text-gray-500">No pending visit requests</p>
                 </div>
               )}
             </div>
@@ -256,21 +312,33 @@ const AdminDashboard = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center">
+            <button
+              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center"
+              onClick={() => window.location.href = '/admin/prisoners'}
+            >
               <FaUserShield className="text-2xl text-blue-600 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-900">Add Prisoner</p>
             </button>
-            <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center">
+            <button
+              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center"
+              onClick={() => window.location.href = '/admin/wardens'}
+            >
               <FaUserTie className="text-2xl text-purple-600 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-900">Manage Wardens</p>
             </button>
-            <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center">
-              <FaFileAlt className="text-2xl text-orange-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-gray-900">Create Report</p>
+            <button
+              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center"
+              onClick={() => window.location.href = '/admin/blocks'}
+            >
+              <FaBuilding className="text-2xl text-green-600 mx-auto mb-2" />
+              <p className="text-sm font-medium text-gray-900">Create Block</p>
             </button>
-            <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center">
-              <FaCalendarCheck className="text-2xl text-green-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-gray-900">Schedule Visit</p>
+            <button
+              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center"
+              onClick={() => window.location.href = '/admin/visit-requests'}
+            >
+              <FaClipboardList className="text-2xl text-indigo-600 mx-auto mb-2" />
+              <p className="text-sm font-medium text-gray-900">Manage Visits</p>
             </button>
           </div>
         </div>
@@ -280,3 +348,9 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+
+// File purpose: Admin landing dashboard showing system stats, recent activities, and alerts with quick actions.
+// Frontend location: Route /admin (Admin > Dashboard) via App.jsx routing.
+// Backend endpoints used: GET http://localhost:5000/api/admin/dashboard for stats/activities/alerts.
+// Auth: Requires Bearer token from sessionStorage.
+// UI container: AdminLayout; Tailwind UI cards and iconography.

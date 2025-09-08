@@ -12,7 +12,8 @@ import {
   FaFileAlt,
   FaClipboardList,
   FaShieldAlt,
-  FaHome
+  FaHome,
+  FaKey
 } from 'react-icons/fa';
 
 const AdminSidebar = () => {
@@ -43,8 +44,9 @@ const AdminSidebar = () => {
     
     // Rules & Policies
     { section: 'RULES & POLICIES' },
-    { path: '/admin/visit-rules', icon: FaCalendarCheck, label: 'Visit Rules' },
-    { path: '/admin/prison-rules', icon: FaShieldAlt, label: 'Prison Rules' },
+  { path: '/admin/visit-requests', icon: FaClipboardList, label: 'Visit Requests' },
+  { path: '/admin/visit-rules', icon: FaCalendarCheck, label: 'Visit Rules' },
+  { path: '/admin/prison-rules', icon: FaShieldAlt, label: 'Prison Rules' },
     
     // User Management
     { section: 'USER MANAGEMENT' },

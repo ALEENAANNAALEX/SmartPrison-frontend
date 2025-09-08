@@ -10,7 +10,7 @@ export const useNotification = () => {
   return context;
 };
 
-export const NotificationProvider = ({ children }) => {
+export const NotificationProvider = ({ children }) => { // Provides notifications state and helper methods
   const [notifications, setNotifications] = useState([]);
 
   const addNotification = useCallback((notification) => {

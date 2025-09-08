@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNotification } from '../contexts/NotificationContext';
+import { useNotification } from '../contexts/NotificationContext'; // Hook to access notifications state/actions
 
 const NotificationContainer = () => {
   const { notifications, removeNotification } = useNotification();

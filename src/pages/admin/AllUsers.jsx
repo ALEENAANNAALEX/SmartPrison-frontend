@@ -1,19 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import AdminLayout from '../../components/AdminLayout';
-import { FaUsers, FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaUserShield, FaUserTie, FaExclamationTriangle } from 'react-icons/fa';
-import { useFormValidation } from '../../hooks/useFormValidation';
-import ValidatedInput, { ValidatedSelect, ValidatedTextarea, ValidatedCheckbox } from '../../components/ValidatedInput';
+import React, { useState, useEffect } from 'react'; // React + hooks
+import AdminLayout from '../../components/AdminLayout'; // Admin layout wrapper
+import { FaUsers, FaTrash, FaSearch, FaUserShield, FaUserTie, FaUserCog, FaExclamationTriangle } from 'react-icons/fa'; // Icons for users UI
+import { useFormValidation } from '../../hooks/useFormValidation'; // Form validation hook
+import ValidatedInput, { ValidatedSelect, ValidatedTextarea, ValidatedCheckbox } from '../../components/ValidatedInput'; // Validated input components
 import { 
   userValidationRules, 
   userCreationValidationRules, 
   validateEmailUniqueness 
-} from '../../utils/validation';
+} from '../../utils/validation'; // Validation rules & helpers
+
+// Section: Component blueprint
+// - State: users list, loading, modal flags, editing/selected user, form submitting
+// - Filters: searchTerm, filterRole, filterStatus
+// - Form: initialFormData; managed via useFormValidation (formData, errors, touched)
+// - Effects: fetch users on mount
+// - API: CRUD for users, toggle status
+// - Handlers: create/update/delete, edit/select, filtering, validation interactions
+// - Render: filters, users table with actions, details modal, add/edit modal
 
 const AllUsers = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
+
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('');
@@ -50,13 +59,13 @@ const AllUsers = () => {
     isFieldValid
   } = useFormValidation(
     initialFormData,
-    editingUser ? userValidationRules : userCreationValidationRules,
+    userCreationValidationRules,
     {
       validateOnChange: true,
       validateOnBlur: true,
       debounceMs: 500,
       asyncValidators: {
-        email: (email) => validateEmailUniqueness(email, editingUser?._id)
+        email: (email) => validateEmailUniqueness(email)
       }
     }
   );
@@ -158,11 +167,8 @@ const AllUsers = () => {
     setSubmitting(true);
     
     try {
-      const url = editingUser 
-        ? `http://localhost:5000/api/admin/users/${editingUser._id}`
-        : 'http://localhost:5000/api/admin/users';
-      
-      const method = editingUser ? 'PUT' : 'POST';
+      const url = 'http://localhost:5000/api/admin/users';
+      const method = 'POST';
       
       // Prepare data for submission
       const submitData = {
@@ -195,11 +201,10 @@ const AllUsers = () => {
       if (response.ok && data.success) {
         fetchUsers();
         setShowAddModal(false);
-        setEditingUser(null);
         resetForm();
-        
+
         // Show success message
-        alert(data.msg || `User ${editingUser ? 'updated' : 'created'} successfully!`);
+        alert(data.msg || 'User created successfully!');
       } else {
         // Handle server validation errors
         alert(data.msg || 'An error occurred while saving the user');
@@ -212,30 +217,9 @@ const AllUsers = () => {
     }
   };
 
-  const handleAddUser = () => {
-    setEditingUser(null);
-    resetForm();
-    setShowAddModal(true);
-  };
 
-  const handleEdit = (user) => {
-    setEditingUser(user);
-    
-    // Update form data with user information
-    updateFormData({
-      name: user.name,
-      email: user.email,
-      password: '', // Don't populate password for security
-      role: user.role,
-      phone: user.phoneNumber || '',
-      address: user.address || '',
-      gender: user.gender || '',
-      nationality: user.nationality || '',
-      isActive: user.isActive !== false
-    });
-    
-    setShowAddModal(true);
-  };
+
+
 
   const handleDelete = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
@@ -337,7 +321,7 @@ const AllUsers = () => {
   return (
     <AdminLayout title="All Users" subtitle="Manage system users and their roles">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center">
             <div className="bg-blue-100 p-3 rounded-lg">
@@ -373,7 +357,19 @@ const AllUsers = () => {
             </div>
           </div>
         </div>
-        
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="bg-orange-100 p-3 rounded-lg">
+              <FaUserCog className="text-2xl text-orange-600" />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-2xl font-bold text-gray-900">{roleStats.staff || 0}</h3>
+              <p className="text-gray-600">Staff</p>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center">
             <div className="bg-green-100 p-3 rounded-lg">
@@ -389,14 +385,8 @@ const AllUsers = () => {
 
       {/* Action Bar */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-        <div className="flex justify-between items-center mb-4">
+        <div className="mb-4">
           <h3 className="text-xl font-semibold text-gray-900">User Management</h3>
-          <button
-            onClick={handleAddUser}
-            className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
-          >
-            <FaPlus /> Add New User
-          </button>
         </div>
 
         {/* Filters */}
@@ -420,6 +410,7 @@ const AllUsers = () => {
             <option value="">All Roles</option>
             <option value="admin">Admin</option>
             <option value="warden">Warden</option>
+            <option value="staff">Staff</option>
             <option value="visitor">Visitor</option>
           </select>
           
@@ -447,7 +438,6 @@ const AllUsers = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -456,7 +446,7 @@ const AllUsers = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center">
+                  <td colSpan="5" className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center">
                       <FaUsers className="text-4xl text-gray-300 mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">No users found</h3>
@@ -468,12 +458,6 @@ const AllUsers = () => {
                       </p>
                       {users.length === 0 && (
                         <div className="flex gap-3">
-                          <button
-                            onClick={handleAddUser}
-                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
-                          >
-                            Add First User
-                          </button>
                           <button
                             onClick={createSampleUsers}
                             className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
@@ -508,9 +492,6 @@ const AllUsers = () => {
                       {user.role}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {user.phone || 'N/A'}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button
                       onClick={() => toggleUserStatus(user._id, user.isActive)}
@@ -527,18 +508,6 @@ const AllUsers = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex gap-2">
                       <button
-                        onClick={() => setSelectedUser(user)}
-                        className="bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition-colors"
-                      >
-                        <FaEye />
-                      </button>
-                      <button
-                        onClick={() => handleEdit(user)}
-                        className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors"
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
                         onClick={() => handleDelete(user._id)}
                         className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition-colors"
                       >
@@ -554,12 +523,12 @@ const AllUsers = () => {
         </div>
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Add Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">
-              {editingUser ? 'Edit' : 'Add'} User
+              Add User
             </h3>
             
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -590,14 +559,12 @@ const AllUsers = () => {
                   isValid={isFieldValid('email')}
                   placeholder="Enter email address"
                   required
-                  disabled={editingUser ? true : false}
-                  helperText={editingUser ? "Email cannot be changed after account creation" : ""}
                 />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <ValidatedInput
-                  label={editingUser ? 'New Password (leave blank to keep current)' : 'Password'}
+                  label="Password"
                   name="password"
                   type="password"
                   value={formData.password}
@@ -606,8 +573,8 @@ const AllUsers = () => {
                   error={getFieldError('password')}
                   isValidating={isFieldValidating('password')}
                   isValid={isFieldValid('password')}
-                  placeholder={editingUser ? 'Leave blank to keep current password' : 'Enter password'}
-                  required={!editingUser}
+                  placeholder="Enter password"
+                  required
                 />
                 
                 <ValidatedSelect
@@ -717,7 +684,6 @@ const AllUsers = () => {
                   type="button"
                   onClick={() => {
                     setShowAddModal(false);
-                    setEditingUser(null);
                     resetForm();
                   }}
                   className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition-colors"
@@ -737,10 +703,10 @@ const AllUsers = () => {
                   {submitting ? (
                     <div className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      {editingUser ? 'Updating...' : 'Creating...'}
+                      Creating...
                     </div>
                   ) : (
-                    `${editingUser ? 'Update' : 'Create'} User`
+                    'Create User'
                   )}
                 </button>
               </div>
@@ -813,18 +779,9 @@ const AllUsers = () => {
             <div className="flex gap-4 pt-6">
               <button
                 onClick={() => setSelectedUser(null)}
-                className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition-colors"
+                className="w-full bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition-colors"
               >
                 Close
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedUser(null);
-                  handleEdit(selectedUser);
-                }}
-                className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
-              >
-                Edit User
               </button>
             </div>
           </div>
@@ -835,3 +792,9 @@ const AllUsers = () => {
 };
 
 export default AllUsers;
+
+// File purpose: Admin page to manage all users: list, search, filter by role/status, create, edit, delete.
+// Frontend location: Route /admin/users (Admin > All Users) via App.jsx routing.
+// Backend endpoints used: GET/POST/PUT/DELETE http://localhost:5000/api/admin/users, PUT /:id/toggle-status.
+// Auth: Requires Bearer token from sessionStorage.
+// UI container: AdminLayout; uses validation hooks and ValidatedInput components.

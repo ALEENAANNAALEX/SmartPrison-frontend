@@ -1,0 +1,4 @@
+firstName,lastName,middleName,dateOfBirth,gender,currentBlock,admissionDate,securityLevel,charges,address,emergencyContact,photoFilename
+John,Michael,Doe,1990-05-15,male,Block A,2024-01-15,medium,Theft,123 Main Street,John Doe Sr.,prisoner_photo_1.jpg
+Jane,Elizabeth,Smith,1985-08-22,female,Block B,2024-01-20,minimum,Fraud,456 Oak Avenue,Jane Smith Jr.,prisoner_photo_2.jpg
+Robert,James,Johnson,1988-12-10,male,Block A,2024-01-25,maximum,Assault,789 Pine Road,Robert Johnson Sr.,prisoner_photo_3.jpg

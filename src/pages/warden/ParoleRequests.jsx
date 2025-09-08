@@ -25,85 +25,8 @@ const ParoleRequests = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterEligibility, setFilterEligibility] = useState('all');
 
-  // Mock data for parole requests
-  const mockRequests = [
-    {
-      id: 1,
-      inmateId: 'INM001',
-      inmateName: 'John Doe',
-      age: 28,
-      crime: 'Theft',
-      sentence: '5 years',
-      servedTime: '3 years 2 months',
-      remainingTime: '1 year 10 months',
-      behavior: 'Good',
-      eligibilityDate: '2024-01-15',
-      applicationDate: '2024-01-20',
-      hearingDate: '2024-02-15',
-      status: 'Under Review',
-      paroleOfficer: 'Officer Martinez',
-      riskLevel: 'Low',
-      rehabilitationPrograms: ['Anger Management', 'Job Training'],
-      supportSystem: 'Family support available'
-    },
-    {
-      id: 2,
-      inmateId: 'INM003',
-      inmateName: 'Mike Johnson',
-      age: 35,
-      crime: 'Assault',
-      sentence: '7 years',
-      servedTime: '4 years 6 months',
-      remainingTime: '2 years 6 months',
-      behavior: 'Average',
-      eligibilityDate: '2024-03-10',
-      applicationDate: '2024-01-22',
-      hearingDate: '2024-03-01',
-      status: 'Pending',
-      paroleOfficer: 'Officer Davis',
-      riskLevel: 'Medium',
-      rehabilitationPrograms: ['Substance Abuse', 'Counseling'],
-      supportSystem: 'Limited family support'
-    },
-    {
-      id: 3,
-      inmateId: 'INM005',
-      inmateName: 'Robert Smith',
-      age: 42,
-      crime: 'Fraud',
-      sentence: '4 years',
-      servedTime: '3 years 8 months',
-      remainingTime: '4 months',
-      behavior: 'Excellent',
-      eligibilityDate: '2023-12-01',
-      applicationDate: '2024-01-10',
-      hearingDate: '2024-01-25',
-      status: 'Approved',
-      paroleOfficer: 'Officer Wilson',
-      riskLevel: 'Low',
-      rehabilitationPrograms: ['Financial Literacy', 'Community Service'],
-      supportSystem: 'Strong family and community support'
-    },
-    {
-      id: 4,
-      inmateId: 'INM007',
-      inmateName: 'David Brown',
-      age: 31,
-      crime: 'Drug Possession',
-      sentence: '3 years',
-      servedTime: '2 years 1 month',
-      remainingTime: '11 months',
-      behavior: 'Good',
-      eligibilityDate: '2024-02-01',
-      applicationDate: '2024-01-18',
-      hearingDate: '2024-02-20',
-      status: 'Rejected',
-      paroleOfficer: 'Officer Chen',
-      riskLevel: 'Medium',
-      rehabilitationPrograms: ['Drug Rehabilitation', 'Life Skills'],
-      supportSystem: 'Halfway house arranged'
-    }
-  ];
+  // No sample data, empty array
+  const mockRequests = [];
 
   useEffect(() => {
     // Simulate API call
@@ -114,15 +37,7 @@ const ParoleRequests = () => {
   }, []);
 
   const filteredRequests = requests.filter(request => {
-    const matchesSearch = request.inmateName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         request.inmateId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         request.crime.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || request.status.toLowerCase().replace(' ', '') === filterStatus.toLowerCase();
-    const matchesEligibility = filterEligibility === 'all' || 
-                              (filterEligibility === 'eligible' && new Date(request.eligibilityDate) <= new Date()) ||
-                              (filterEligibility === 'noteligible' && new Date(request.eligibilityDate) > new Date());
-    
-    return matchesSearch && matchesStatus && matchesEligibility;
+    return request.inmateName.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
   const getStatusBadge = (status) => {
@@ -234,11 +149,10 @@ const ParoleRequests = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Requests</p>
-                <p className="text-2xl font-bold text-gray-900">{requests.length}</p>
+                <p className="text-2xl font-bold text-gray-900">0</p>
               </div>
             </div>
           </div>
-          
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-yellow-100">
@@ -246,13 +160,10 @@ const ParoleRequests = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Pending Review</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {requests.filter(r => r.status === 'Pending' || r.status === 'Under Review').length}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">0</p>
               </div>
             </div>
           </div>
-          
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-green-100">
@@ -260,13 +171,10 @@ const ParoleRequests = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Approved</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {requests.filter(r => r.status === 'Approved').length}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">0</p>
               </div>
             </div>
           </div>
-          
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-orange-100">
@@ -274,9 +182,7 @@ const ParoleRequests = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Eligible</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {requests.filter(r => isEligible(r.eligibilityDate)).length}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">0</p>
               </div>
             </div>
           </div>
@@ -326,72 +232,26 @@ const ParoleRequests = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{request.inmateName}</div>
-                          <div className="text-sm text-gray-500">ID: {request.inmateId}</div>
-                          <div className="text-sm text-gray-500">{request.age} years old</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{request.crime}</div>
-                      <div className="text-sm text-gray-500">Sentence: {request.sentence}</div>
-                      <div className="text-xs text-gray-500">Served: {request.servedTime}</div>
-                      <div className="text-xs text-gray-500">Remaining: {request.remainingTime}</div>
+                      <div className="text-sm text-gray-900">-</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="space-y-1">
-                        <span className={getBehaviorBadge(request.behavior)}>
-                          {request.behavior}
-                        </span>
-                        <div>
-                          <span className={getRiskBadge(request.riskLevel)}>
-                            {request.riskLevel} Risk
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {request.rehabilitationPrograms.length} programs
-                        </div>
-                      </div>
+                      <div className="text-sm text-gray-900">-</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 flex items-center mb-1">
-                        <FaCalendarAlt className="mr-1 text-gray-400" />
-                        {new Date(request.hearingDate).toLocaleDateString()}
-                      </div>
-                      <div className="text-sm text-gray-500">{request.paroleOfficer}</div>
-                      <div className="text-xs text-gray-500">
-                        {isEligible(request.eligibilityDate) ? (
-                          <span className="text-green-600">✓ Eligible</span>
-                        ) : (
-                          <span className="text-red-600">✗ Not Eligible</span>
-                        )}
-                      </div>
+                      <div className="text-sm text-gray-900">-</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={getStatusBadge(request.status)}>
-                        {request.status}
-                      </span>
+                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-medium">-</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <button className="text-indigo-600 hover:text-indigo-900">
                           <FaEye className="h-4 w-4" />
                         </button>
-                        {(request.status === 'Pending' || request.status === 'Under Review') && (
-                          <>
-                            <button 
-                              onClick={() => handleApprove(request.id)}
-                              className="text-green-600 hover:text-green-900"
-                            >
-                              <FaCheck className="h-4 w-4" />
-                            </button>
-                            <button 
-                              onClick={() => handleReject(request.id)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              <FaTimes className="h-4 w-4" />
-                            </button>
-                          </>
-                        )}
                       </div>
                     </td>
                   </tr>

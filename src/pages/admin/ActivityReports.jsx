@@ -1,6 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import AdminLayout from '../../components/AdminLayout';
-import { FaClipboardList, FaPlus, FaEye, FaSearch, FaCalendarAlt } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react'; // React + hooks for state/effect
+import AdminLayout from '../../components/AdminLayout'; // Admin layout wrapper
+import { FaClipboardList, FaPlus, FaEye, FaSearch, FaCalendarAlt } from 'react-icons/fa'; // Icons for reports UI
+
+// Section: Component blueprint
+// - State: incidentReports, weeklyReports, blocks, loading, activeTab, modal visibility, selectedReport
+// - Filters: searchTerm, filterBlock, filterSeverity
+// - Forms: incidentFormData, weeklyFormData
+// - Effects: fetch reports/blocks on mount
+// - API: CRUD for incidents/weekly reports; fetch blocks
+// - Render: tabbed view with tables, filters, and modal details
 
 const ActivityReports = () => {
   const [incidentReports, setIncidentReports] = useState([]);
@@ -807,3 +815,9 @@ const ActivityReports = () => {
 };
 
 export default ActivityReports;
+
+// File purpose: Admin page to manage incident and weekly activity reports with tabs, filters, CRUD actions.
+// Frontend location: Route /admin/activity-reports (Admin > Activity & Incident Reports) via App.jsx routing.
+// Backend endpoints used: Incidents GET/POST http://localhost:5000/api/admin/reports/incidents; Weekly GET/POST http://localhost:5000/api/admin/reports/weekly; GET blocks http://localhost:5000/api/admin/blocks.
+// Auth: Requires Bearer token from sessionStorage.
+// UI container: AdminLayout; Tailwind-based tables and modals.

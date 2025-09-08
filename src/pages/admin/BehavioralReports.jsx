@@ -1,6 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import AdminLayout from '../../components/AdminLayout';
-import { FaFileAlt, FaPlus, FaEye, FaCheck, FaTimes, FaSearch, FaFilter } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react'; // React core + hooks
+import AdminLayout from '../../components/AdminLayout'; // Admin layout wrapper
+import { FaFileAlt, FaPlus, FaEye, FaCheck, FaTimes, FaSearch, FaFilter } from 'react-icons/fa'; // Icons for reports UI
+
+// Section: Component blueprint
+// - State: reports, prisoners, loading flag, modal visibility, selected report
+// - Filters: searchTerm, filterStatus, filterType
+// - Form: formData for creating a report
+// - Effects: load reports and prisoners on mount
+// - API: fetch reports, fetch prisoners, create report, review report
+// - Render: filters, list/table, details modal, create form modal
 
 const BehavioralReports = () => {
   const [reports, setReports] = useState([]);
@@ -540,3 +548,9 @@ const BehavioralReports = () => {
 };
 
 export default BehavioralReports;
+
+// File purpose: Admin page to create, view, filter, and review behavioral reports for prisoners.
+// Frontend location: Route /admin/behavioral-reports (Admin > Behavioral Reports) via App.jsx routing.
+// Backend endpoints used: GET/POST http://localhost:5000/api/admin/reports/behavioral; PUT /:id/review; GET prisoners from http://localhost:5000/api/admin/prisoners.
+// Auth: Requires Bearer token from sessionStorage.
+// UI container: AdminLayout; includes modal for details and Tailwind UI table.

@@ -40,6 +40,49 @@ import {
 } from '../utils/validation';
 
 export default function Dashboard() {
+  // Visit history state for dashboard and modal
+  const [visitHistory, setVisitHistory] = useState({ completed: [], cancelled: [], pending: [] });
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const token = sessionStorage.getItem('token');
+        const base = 'http://localhost:5000';
+        // Fetch cancelled and rejected separately then merge into one Cancelled bucket for UI
+        const [pendingRes, completedRes, cancelledRes, rejectedRes] = await Promise.all([
+          fetch(`${base}/api/visits/mine?status=pending`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${base}/api/visits/mine?status=completed`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${base}/api/visits/mine?status=cancelled`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${base}/api/visits/mine?status=rejected`, { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+        const [pending, completed, cancelled, rejected] = await Promise.all([
+          pendingRes.json(), completedRes.json(), cancelledRes.json(), rejectedRes.json()
+        ]);
+        const mapVisit = (v) => ({
+          id: v._id,
+          inmateName: v.prisoner ? `${v.prisoner.firstName} ${v.prisoner.lastName}` : '-',
+          date: new Date(v.visitDate).toISOString().slice(0,10),
+          time: v.visitTime,
+          status: v.status,
+          type: v.purpose || v.relationship || 'Visit'
+        });
+        // Merge cancelled + rejected into one list for the Cancelled tab
+        const cancelledMerged = [
+          ...((cancelled.visits || []).map(mapVisit)),
+          ...((rejected.visits || []).map(mapVisit))
+        ];
+
+        setVisitHistory({
+          completed: (completed.visits || []).map(mapVisit),
+          cancelled: cancelledMerged,
+          pending: (pending.visits || []).map(mapVisit)
+        });
+      } catch (e) {
+        // Keep defaults if API fails
+      }
+    };
+    loadHistory();
+  }, []);
   const navigate = useNavigate();
   const { user, logout, fetchFreshUserData } = useAuth();
   const { showSuccess, showError } = useNotification();
@@ -190,48 +233,35 @@ export default function Dashboard() {
     navigate('/');
   };
 
-  const upcomingVisits = [
-    {
-      id: 1,
-      inmateName: "John Doe",
-      date: "2024-01-25",
-      time: "10:00 AM",
-      status: "Confirmed",
-      location: "Block A - Room 3"
-    },
-    {
-      id: 2,
-      inmateName: "Jane Smith",
-      date: "2024-01-28",
-      time: "2:00 PM",
-      status: "Pending",
-      location: "Block B - Room 1"
-    }
-  ];
+  const [upcomingVisits, setUpcomingVisits] = useState([]);
+  useEffect(() => {
+    const loadUpcoming = async () => {
+      try {
+        const token = sessionStorage.getItem('token');
+        const base = 'http://localhost:5000';
+        const res = await fetch(`${base}/api/visits/upcoming`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        console.log('Upcoming visits API response:', data);
+        if (res.ok && data?.visits) {
+          const mapped = data.visits.map(v => ({
+            id: v._id,
+            inmateName: v.prisoner ? `${v.prisoner.firstName} ${v.prisoner.lastName}` : '-',
+            date: new Date(v.visitDate).toISOString().slice(0,10),
+            time: v.visitTime,
+            status: v.status || 'Approved',
+            location: '-'
+          }));
+          setUpcomingVisits(mapped);
+        } else {
+          console.warn('No upcoming visits found or API error:', data);
+        }
+      } catch (e) {
+        console.error('Error loading upcoming visits:', e);
+      }
+    };
+    loadUpcoming();
+  }, []);
 
-  const recentActivity = [
-    {
-      id: 1,
-      action: "Visit Request Submitted",
-      inmate: "John Doe",
-      date: "2024-01-20",
-      status: "Approved"
-    },
-    {
-      id: 2,
-      action: "Visit Completed",
-      inmate: "Jane Smith",
-      date: "2024-01-18",
-      status: "Completed"
-    },
-    {
-      id: 3,
-      action: "Profile Updated",
-      inmate: "-",
-      date: "2024-01-15",
-      status: "Success"
-    }
-  ];
 
   // Don't render dashboard if user is not authenticated
   if (!user) {
@@ -347,7 +377,7 @@ export default function Dashboard() {
           </div>
 
           {/* Dashboard Stats Cards - Home page style */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
             {/* Total Visits Card */}
             <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
               <div className="flex items-center justify-between mb-4">
@@ -355,8 +385,8 @@ export default function Dashboard() {
                   <Calendar className="w-6 h-6 text-white" />
                 </div>
                 <div className="text-right">
-                  <p className="text-3xl font-bold text-gray-900">12</p>
-                  <p className="text-blue-600 text-sm font-medium">+2 this month</p>
+                  <p className="text-3xl font-bold text-gray-900">{upcomingVisits.length}</p>
+                  <p className="text-blue-600 text-sm font-medium">+{upcomingVisits.filter(v => v.date && new Date(v.date).getMonth() === new Date().getMonth()).length} this month</p>
                 </div>
               </div>
               <h3 className="text-gray-900 font-semibold text-lg">Total Visits</h3>
@@ -370,7 +400,7 @@ export default function Dashboard() {
                   <Clock className="w-6 h-6 text-white" />
                 </div>
                 <div className="text-right">
-                  <p className="text-3xl font-bold text-gray-900">2</p>
+                  <p className="text-3xl font-bold text-gray-900">{visitHistory && visitHistory.pending ? visitHistory.pending.length : 0}</p>
                   <p className="text-yellow-600 text-sm font-medium">Awaiting approval</p>
                 </div>
               </div>
@@ -385,34 +415,25 @@ export default function Dashboard() {
                   <Users className="w-6 h-6 text-white" />
                 </div>
                 <div className="text-right">
-                  <p className="text-3xl font-bold text-gray-900">3</p>
+                  <p className="text-3xl font-bold text-gray-900">{
+                    Array.from(new Set(
+                      upcomingVisits
+                        .filter(v => ['approved','confirmed'].includes((v.status || '').toLowerCase()))
+                        .map(v => v.inmateName)
+                    )).length
+                  }</p>
                   <p className="text-green-600 text-sm font-medium">Active connections</p>
                 </div>
               </div>
               <h3 className="text-gray-900 font-semibold text-lg">Active Inmates</h3>
-              <p className="text-gray-600 text-sm mt-1">People you can visit</p>
-            </div>
-
-            {/* Profile Status Card */}
-            <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-purple-600 rounded-lg shadow-md">
-                  <Shield className="w-6 h-6 text-white" />
-                </div>
-                <div className="text-right">
-                  <p className="text-3xl font-bold text-gray-900">100%</p>
-                  <p className="text-purple-600 text-sm font-medium">Profile complete</p>
-                </div>
-              </div>
-              <h3 className="text-gray-900 font-semibold text-lg">Profile Status</h3>
-              <p className="text-gray-600 text-sm mt-1">Account verification status</p>
+              <p className="text-gray-600 text-sm mt-1">People you  visited</p>
             </div>
           </div>
 
           {/* Main Content Grid - Home page style */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 gap-8">
             {/* Upcoming Visits - Home page style */}
-            <div className="lg:col-span-2 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6">
+            <div className="w-full bg-gradient-to-br from-purple-500/10 via-white/95 to-blue-500/10 backdrop-blur-sm rounded-xl shadow-2xl border border-gray-100 p-8 hover:shadow-2xl transition-all duration-300">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 bg-purple-600 rounded-lg shadow-md">
@@ -424,32 +445,25 @@ export default function Dashboard() {
               </div>
 
               <div className="space-y-4">
-                {upcomingVisits.map((visit, index) => (
-                  <div key={visit.id} className="group bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg p-4 transition-all duration-300 hover:shadow-md">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                {upcomingVisits.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <Calendar className="w-12 h-12 mx-auto mb-4 opacity-40" />
+                    <p>No upcoming visits found.</p>
+                    <p className="text-xs mt-2">If you have scheduled visits, make sure they are approved and for a future date.</p>
+                  </div>
+                ) : (
+                  upcomingVisits.map((visit, index) => (
+                    <div key={visit.id} className="group bg-gradient-to-r from-purple-100 via-white to-blue-100 border border-gray-100 rounded-xl p-5 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] flex items-center justify-between">
+                      <div className="flex items-center gap-6 w-full">
+                        <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
                           {visit.inmateName.charAt(0)}
                         </div>
-                        <div>
-                          <p className="font-semibold text-gray-900 text-lg">{visit.inmateName}</p>
-                          <div className="flex items-center space-x-4 text-gray-600 text-sm">
-                            <div className="flex items-center space-x-1">
-                              <Calendar className="w-4 h-4" />
-                              <span>{visit.date}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Clock className="w-4 h-4" />
-                              <span>{visit.time}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-1 text-gray-500 text-sm mt-1">
-                            <MapPin className="w-4 h-4" />
-                            <span>{visit.location}</span>
-                          </div>
+                        <div className="flex-1 flex flex-row items-center gap-8">
+                          <span className="font-semibold text-gray-900 text-lg">{visit.inmateName}</span>
+                          <span className="flex items-center gap-2 text-gray-600 text-sm"><Calendar className="w-4 h-4" />{visit.date}</span>
+                          <span className="flex items-center gap-2 text-gray-600 text-sm"><Clock className="w-4 h-4" />{visit.time}</span>
+                          <span className="text-gray-500 text-sm">{visit.location}</span>
                         </div>
-                      </div>
-                      <div className="text-right">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                           visit.status === 'Confirmed'
                             ? 'bg-green-100 text-green-800 border border-green-200'
@@ -459,48 +473,13 @@ export default function Dashboard() {
                         </span>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
 
             {/* Recent Activity - Home page style */}
-            <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-6">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="p-2 bg-indigo-600 rounded-lg shadow-md">
-                  <Bell className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900">Recent Activity</h3>
-              </div>
-
-              <div className="space-y-4">
-                {recentActivity.map((activity, index) => (
-                  <div key={activity.id} className="group flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-all duration-200">
-                    <div className="flex-shrink-0 mt-1">
-                      <div className={`w-3 h-3 rounded-full ${
-                        index === 0 ? 'bg-green-500' :
-                        index === 1 ? 'bg-blue-500' : 'bg-purple-500'
-                      } shadow-sm`}></div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-gray-900 font-medium text-sm group-hover:text-blue-600 transition-colors">
-                        {activity.action}
-                      </p>
-                      <p className="text-gray-500 text-xs mt-1">{activity.date}</p>
-                      {activity.inmate && (
-                        <p className="text-gray-400 text-xs">Related to: {activity.inmate}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <button className="w-full text-center text-gray-700 hover:text-black text-sm font-medium transition-colors duration-200">
-                  View All Activity →
-                </button>
-              </div>
-            </div>
+            {/* Removed empty block for better layout */}
           </div>
 
           {/* Quick Actions Section */}
@@ -951,14 +930,56 @@ function EditProfileModal({ userProfile, updateProfile, setUserProfile, onClose,
 // Schedule Visit Modal Component
 function ScheduleVisitModal({ onClose }) {
   const { showSuccess, showError } = useNotification();
+  const API_BASE = 'http://localhost:5000';
+
+  // Optional list of valid inmate names (may be unavailable for visitors)
+  const [validInmateNames, setValidInmateNames] = useState([]);
+  const [inmateNameError, setInmateNameError] = useState('');
+  // relationship removed
+  // ...existing code...
+
+  useEffect(() => {
+    // Prefill inmate name and relationship if the current user is listed
+    // as an emergency contact for any prisoner
+    const prefillFromLinkedInmates = async () => {
+      try {
+        const token = sessionStorage.getItem('token');
+        if (!token) return; // not logged in; skip prefill
+        const res = await fetch(`${API_BASE}/api/visits/linked-inmates`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.status === 401 || res.status === 403) {
+          // Not authorized for some reason; skip silently
+          return;
+        }
+        let data = null;
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          try { data = await res.json(); } catch (_) { data = null; }
+        }
+        if (res.ok && data?.success && Array.isArray(data.inmates)) {
+          if (data.inmates.length === 1) {
+            const only = data.inmates[0];
+            if (only?.fullName) handleFieldChange('inmateName', only.fullName);
+          }
+        }
+      } catch (e) {
+        // Ignore errors but do not crash UI
+        // console.error('Prefill linked inmates failed', e);
+      }
+    };
+
+    prefillFromLinkedInmates();
+
+    // Note: fetching the full inmate list is restricted to wardens.
+    // For visitors we skip this to avoid 401 errors; validation will not rely on the list.
+  }, []);
 
   // Define validation rules for visit scheduling
   const validationRules = {
     inmateName: validateName,
-    inmateId: validateInmateId,
     visitDate: validateVisitDate,
     visitTime: validateVisitTime,
-    relationship: validateRelationship,
     purpose: validatePurpose
   };
 
@@ -973,15 +994,66 @@ function ScheduleVisitModal({ onClose }) {
     isFieldValid
   } = useFormValidation({
     inmateName: '',
-    inmateId: '',
     visitDate: '',
     visitTime: '',
     visitType: 'general',
-    purpose: '',
-    relationship: ''
+    purpose: ''
   }, validationRules);
 
+  // Real-time inmate name validation
+  const handleInmateNameChange = (name, value) => {
+    handleFieldChange(name, value);
+    if (!value.trim()) {
+      setInmateNameError('');
+      return;
+    }
+    // If we don't have a whitelist of names (visitor), do not block typing
+    if (!Array.isArray(validInmateNames) || validInmateNames.length === 0) {
+      setInmateNameError('');
+      return;
+    }
+    if (!validInmateNames.some(n => n.trim().toLowerCase() === value.trim().toLowerCase())) {
+      setInmateNameError('No inmate found with this name');
+    } else {
+      setInmateNameError('');
+    }
+  };
+
   const [loading, setLoading] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState([
+    { slot: '09:00', remaining: 10 },
+    { slot: '10:00', remaining: 10 },
+    { slot: '11:00', remaining: 10 },
+    { slot: '14:00', remaining: 10 },
+    { slot: '15:00', remaining: 10 },
+    { slot: '16:00', remaining: 10 },
+  ]);
+
+  // Fetch availability when date changes
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      if (!formData.visitDate) return;
+      try {
+        const token = sessionStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/visits/availability?date=${encodeURIComponent(formData.visitDate)}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok && data?.slots) {
+          setAvailableSlots(data.slots.filter(s => s.remaining > 0));
+          // Reset selected time if it’s no longer available
+          if (formData.visitTime && !data.slots.some(s => s.slot === formData.visitTime && s.remaining > 0)) {
+            handleFieldChange('visitTime', '');
+          }
+        }
+      } catch (e) {
+        // Keep defaults if API fails
+      }
+    };
+    fetchAvailability();
+  }, [formData.visitDate]);
+
+  // relationship fully removed
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -996,12 +1068,33 @@ function ScheduleVisitModal({ onClose }) {
     }
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const token = sessionStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/visits`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          inmateName: formData.inmateName,
+          visitDate: formData.visitDate,
+          visitTime: formData.visitTime,
+          purpose: formData.purpose
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.msg || 'Failed to schedule visit');
+      }
+
       showSuccess('Visit scheduled successfully! You will receive a confirmation email.', 'Visit Scheduled');
+      if (typeof fetchRecentActivity === 'function') {
+        await fetchRecentActivity();
+      }
       onClose();
     } catch (error) {
-      showError('Error scheduling visit. Please try again.', 'Scheduling Failed');
+      showError(error.message || 'Error scheduling visit. Please try again.', 'Scheduling Failed');
     } finally {
       setLoading(false);
     }
@@ -1027,50 +1120,19 @@ function ScheduleVisitModal({ onClose }) {
               name="inmateName"
               type="text"
               value={formData.inmateName}
-              onChange={handleFieldChange}
+              onChange={handleInmateNameChange}
               onBlur={handleFieldBlur}
               error={getFieldError('inmateName')}
               isValid={isFieldValid('inmateName')}
               required
               placeholder="Enter inmate's full name"
               helperText="Full name of the inmate you wish to visit"
+              readOnly={true}
+              disabled={true}
             />
 
-            <ValidatedInput
-              label="Inmate ID"
-              name="inmateId"
-              type="text"
-              value={formData.inmateId}
-              onChange={handleFieldChange}
-              onBlur={handleFieldBlur}
-              error={getFieldError('inmateId')}
-              isValid={isFieldValid('inmateId')}
-              required
-              placeholder="Enter inmate ID (e.g., ABC123456)"
-              helperText="6-12 character alphanumeric ID"
-            />
+            {/* Inmate ID removed as per requirements */}
 
-            <ValidatedSelect
-              label="Relationship"
-              name="relationship"
-              value={formData.relationship}
-              onChange={handleFieldChange}
-              onBlur={handleFieldBlur}
-              error={getFieldError('relationship')}
-              isValid={isFieldValid('relationship')}
-              required
-              options={[
-                { value: 'father', label: 'Father' },
-                { value: 'mother', label: 'Mother' },
-                { value: 'spouse', label: 'Spouse' },
-                { value: 'child', label: 'Child' },
-                { value: 'sibling', label: 'Sibling' },
-                { value: 'friend', label: 'Friend' },
-                { value: 'lawyer', label: 'Legal Representative' },
-                { value: 'other', label: 'Other' }
-              ]}
-              placeholder="Select your relationship"
-            />
 
             <ValidatedInput
               label="Visit Date"
@@ -1084,7 +1146,7 @@ function ScheduleVisitModal({ onClose }) {
               required
               min={getMinDateForVisit()}
               max={getMaxDateForVisit()}
-              helperText="Select a date within the next 3 months"
+              helperText="Select a date within the  1 months"
             />
 
             <ValidatedSelect
@@ -1096,16 +1158,9 @@ function ScheduleVisitModal({ onClose }) {
               error={getFieldError('visitTime')}
               isValid={isFieldValid('visitTime')}
               required
-              options={[
-                { value: '09:00', label: '09:00 AM' },
-                { value: '10:00', label: '10:00 AM' },
-                { value: '11:00', label: '11:00 AM' },
-                { value: '14:00', label: '02:00 PM' },
-                { value: '15:00', label: '03:00 PM' },
-                { value: '16:00', label: '04:00 PM' }
-              ]}
+              options={availableSlots.map(s => ({ value: s.slot, label: `${s.slot} (${s.remaining} left)` }))}
               placeholder="Select time slot"
-              helperText="Available visiting hours: 9 AM - 5 PM"
+              helperText="Only slots with remaining capacity are shown"
             />
 
             <ValidatedSelect
@@ -1164,58 +1219,46 @@ function ScheduleVisitModal({ onClose }) {
 function ViewHistoryModal({ onClose }) {
   const [activeTab, setActiveTab] = useState('completed');
 
-  const visitHistory = {
-    completed: [
-      {
-        id: 1,
-        inmateName: 'John Smith',
-        date: '2024-01-15',
-        time: '10:00 AM',
-        duration: '30 minutes',
-        status: 'Completed',
-        type: 'General Visit'
-      },
-      {
-        id: 2,
-        inmateName: 'Michael Johnson',
-        date: '2024-01-10',
-        time: '02:00 PM',
-        duration: '45 minutes',
-        status: 'Completed',
-        type: 'Legal Visit'
-      },
-      {
-        id: 3,
-        inmateName: 'John Smith',
-        date: '2024-01-05',
-        time: '11:00 AM',
-        duration: '30 minutes',
-        status: 'Completed',
-        type: 'General Visit'
+  const [visitHistory, setVisitHistory] = useState({ completed: [], cancelled: [], pending: [] });
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const token = sessionStorage.getItem('token');
+        const base = 'http://localhost:5000';
+        const [pendingRes, completedRes, cancelledRes, rejectedRes] = await Promise.all([
+          fetch(`${base}/api/visits/mine?status=pending`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${base}/api/visits/mine?status=completed`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${base}/api/visits/mine?status=cancelled`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${base}/api/visits/mine?status=rejected`, { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+        const [pending, completed, cancelled, rejected] = await Promise.all([
+          pendingRes.json(), completedRes.json(), cancelledRes.json(), rejectedRes.json()
+        ]);
+        const mapVisit = (v) => ({
+          id: v._id,
+          inmateName: v.prisoner ? `${v.prisoner.firstName} ${v.prisoner.lastName}` : '-',
+          date: new Date(v.visitDate).toISOString().slice(0,10),
+          time: v.visitTime,
+          status: v.status,
+          type: v.purpose || v.relationship || 'Visit'
+        });
+        const cancelledMerged = [
+          ...((cancelled.visits || []).map(mapVisit)),
+          ...((rejected.visits || []).map(mapVisit))
+        ];
+
+        setVisitHistory({
+          completed: (completed.visits || []).map(mapVisit),
+          cancelled: cancelledMerged,
+          pending: (pending.visits || []).map(mapVisit)
+        });
+      } catch (e) {
+        // Keep defaults if API fails
       }
-    ],
-    cancelled: [
-      {
-        id: 4,
-        inmateName: 'Robert Brown',
-        date: '2024-01-12',
-        time: '03:00 PM',
-        status: 'Cancelled',
-        reason: 'Inmate unavailable',
-        type: 'General Visit'
-      }
-    ],
-    pending: [
-      {
-        id: 5,
-        inmateName: 'David Wilson',
-        date: '2024-01-28',
-        time: '09:00 AM',
-        status: 'Pending Approval',
-        type: 'General Visit'
-      }
-    ]
-  };
+    };
+    loadHistory();
+  }, []);
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1300,6 +1343,38 @@ function ViewHistoryModal({ onClose }) {
                     </div>
                   )}
                 </div>
+
+                {activeTab === 'pending' && (
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Delete this pending request?')) return;
+                        try {
+                          const token = sessionStorage.getItem('token');
+                          const base = 'http://localhost:5000';
+                          const res = await fetch(`${base}/api/visits/${visit.id}`, {
+                            method: 'DELETE',
+                            headers: { Authorization: `Bearer ${token}` }
+                          });
+                          if (res.ok) {
+                            // Optimistic removal
+                            setVisitHistory((prev) => ({
+                              ...prev,
+                              pending: prev.pending.filter(v => v.id !== visit.id)
+                            }));
+                          } else {
+                            console.warn('Failed to delete visit');
+                          }
+                        } catch (e) {
+                          console.error('Delete visit error', e);
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                    >
+                      Delete Request
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
 

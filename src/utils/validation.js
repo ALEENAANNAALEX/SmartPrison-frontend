@@ -98,15 +98,19 @@ export const validateVisitDate = (dateStr) => {
   const visitDate = new Date(dateStr);
   const today = new Date();
   today.setHours(0, 0, 0, 0); // Reset time to start of day
-  
+
   if (isNaN(visitDate.getTime())) return 'Please enter a valid date';
-  if (visitDate < today) return 'Visit date cannot be in the past';
-  
-  // Check if date is too far in the future (e.g., 3 months)
-  const maxDate = new Date();
-  maxDate.setMonth(maxDate.getMonth() + 3);
-  if (visitDate > maxDate) return 'Visit date cannot be more than 3 months in advance';
-  
+
+  // Min = tomorrow
+  const min = new Date(today);
+  min.setDate(min.getDate() + 1);
+  if (visitDate < min) return 'Visit date must be from tomorrow onwards';
+
+  // Max = +1 month from tomorrow (inclusive)
+  const max = new Date(min);
+  max.setMonth(max.getMonth() + 1);
+  if (visitDate > max) return 'Visit date cannot be more than 1 month ahead';
+
   return '';
 };
 
@@ -161,16 +165,19 @@ export const getMaxDateFor18Plus = () => {
   return date.toISOString().split('T')[0];
 };
 
-// Utility function to get min date for visit scheduling (today)
+// Utility function to get min date for visit scheduling (tomorrow)
 export const getMinDateForVisit = () => {
-  return new Date().toISOString().split('T')[0];
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
 };
 
-// Utility function to get max date for visit scheduling (3 months from now)
+// Utility function to get max date for visit scheduling (tomorrow + 1 month)
 export const getMaxDateForVisit = () => {
-  const date = new Date();
-  date.setMonth(date.getMonth() + 3);
-  return date.toISOString().split('T')[0];
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setMonth(d.getMonth() + 1);
+  return d.toISOString().split('T')[0];
 };
 
 // Utility function to validate all form fields

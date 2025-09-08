@@ -5,8 +5,6 @@ import {
   FaUsers, 
   FaExclamationTriangle, 
   FaCheckCircle,
-  FaTrendingUp,
-  FaTrendingDown,
   FaCalendarAlt,
   FaFilter,
   FaDownload,
@@ -102,11 +100,7 @@ const BehaviorAnalytics = () => {
     return `px-2 py-1 rounded-full text-xs font-medium ${colors[status]}`;
   };
 
-  const getTrendIcon = (trend) => {
-    if (trend === 'up') return <FaTrendingUp className="h-4 w-4 text-red-500" />;
-    if (trend === 'down') return <FaTrendingDown className="h-4 w-4 text-green-500" />;
-    return <div className="h-4 w-4 bg-gray-400 rounded-full"></div>;
-  };
+
 
   if (loading) {
     return (
@@ -192,7 +186,7 @@ const BehaviorAnalytics = () => {
                 <p className="text-sm text-blue-600 mt-1">+2.3% from last month</p>
               </div>
               <div className="p-3 rounded-full bg-blue-100">
-                <FaTrendingUp className="h-6 w-6 text-blue-600" />
+                <FaChartLine className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </div>
@@ -219,7 +213,7 @@ const BehaviorAnalytics = () => {
               {incidentsByType.map((incident, index) => (
                 <div key={index} className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    {getTrendIcon(incident.trend)}
+                    <div className="h-4 w-4 bg-gray-400 rounded-full"></div>
                     <div>
                       <p className="text-sm font-medium text-gray-900">{incident.type}</p>
                       <p className="text-xs text-gray-500">{incident.percentage}% of total</p>

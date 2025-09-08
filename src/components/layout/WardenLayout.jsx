@@ -13,7 +13,10 @@ import {
   FaHeartbeat,
   FaCog,
   FaSignOutAlt,
-  FaHome
+  FaHome,
+  FaSearch,
+  FaExpand,
+  FaBell
 } from 'react-icons/fa';
 
 const WardenLayout = ({ children, title, subtitle }) => {
@@ -39,7 +42,6 @@ const WardenLayout = ({ children, title, subtitle }) => {
 
     // Staff Management
     { section: 'STAFF MANAGEMENT' },
-    { path: '/warden/manage-staff', icon: FaUserTie, label: 'Manage Staff' },
     { path: '/warden/staff', icon: FaUserTie, label: 'Staff Management' },
     { path: '/warden/leaves', icon: FaUserClock, label: 'Leave Requests' },
 
@@ -122,15 +124,26 @@ const WardenLayout = ({ children, title, subtitle }) => {
       <div className="flex-1 ml-72 p-8">
         {/* Header */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            {/* Title and subtitle */}
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">{title || 'Warden Dashboard'}</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-1">{title || 'Warden Dashboard'}</h1>
               {subtitle && <p className="text-gray-600">{subtitle}</p>}
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-600">
-                Welcome, {user?.name || 'Warden'}
+
+            {/* Search and actions */}
+            <div className="flex items-center gap-3 w-full lg:w-auto">
+              {/* Search box */}
+              <div className="relative flex-1 lg:flex-none">
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  className="w-full lg:w-80 pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                />
               </div>
+
+              {/* Action icons removed: fullscreen and notifications */}
             </div>
           </div>
         </div>

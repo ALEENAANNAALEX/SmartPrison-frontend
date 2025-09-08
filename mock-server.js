@@ -356,6 +356,37 @@ app.get('/api/admin/blocks', authenticateToken, (req, res) => {
   res.json({ success: true, blocks });
 });
 
+// Minimal mock behavioral reports endpoints for UI testing (no prisoner required)
+let behavioralReports = [];
+app.get('/api/warden/reports/behavioral', authenticateToken, (req, res) => {
+  res.json({ success: true, reports: behavioralReports });
+});
+app.post('/api/warden/reports/behavioral', authenticateToken, (req, res) => {
+  const body = req.body || {};
+  // UI removed prisoner; backend in real app needs it, but mock will accept without
+  const newReport = {
+    _id: Date.now().toString(),
+    reviewStatus: 'pending',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...body,
+  };
+  behavioralReports.unshift(newReport);
+  res.json({ success: true, report: newReport });
+});
+app.put('/api/warden/reports/behavioral/:id', authenticateToken, (req, res) => {
+  const id = req.params.id;
+  const idx = behavioralReports.findIndex(r => r._id === id);
+  if (idx === -1) return res.status(404).json({ msg: 'Not found' });
+  behavioralReports[idx] = { ...behavioralReports[idx], ...req.body, updatedAt: new Date().toISOString() };
+  res.json({ success: true, report: behavioralReports[idx] });
+});
+app.delete('/api/warden/reports/behavioral/:id', authenticateToken, (req, res) => {
+  const id = req.params.id;
+  behavioralReports = behavioralReports.filter(r => r._id !== id);
+  res.json({ success: true });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Mock server is running' });
@@ -378,4 +409,5 @@ app.listen(PORT, () => {
   console.log('- GET /api/admin/prisoners');
   console.log('- POST /api/admin/prisoners');
   console.log('- GET /api/admin/blocks');
+  console.log('- GET/POST/PUT/DELETE /api/warden/reports/behavioral');
 });

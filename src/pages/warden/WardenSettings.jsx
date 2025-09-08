@@ -78,14 +78,18 @@ const WardenSettings = () => {
 
   const validatePassword = (password) => {
     const errors = [];
-    if (password.length < 6) {
-      errors.push('Password must be at least 6 characters long');
+    // Match admin rules: min 8, letter, number, special char
+    if (password.length < 8) {
+      errors.push('Password must be at least 8 characters long');
     }
     if (!/(?=.*[a-zA-Z])/.test(password)) {
       errors.push('Password must contain at least one letter');
     }
     if (!/(?=.*\d)/.test(password)) {
       errors.push('Password must contain at least one number');
+    }
+    if (!/(?=.*[@$!%*?&])/.test(password)) {
+      errors.push('Password must contain at least one special character (@$!%*?&)');
     }
     return errors;
   };
@@ -325,7 +329,7 @@ const WardenSettings = () => {
 
             {activeTab === 'password' && (
               <div className="space-y-6">
-                <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Reset Password</h3>
                 <form onSubmit={handlePasswordSubmit} className="space-y-6">
                   {/* Current Password */}
                   <div>
@@ -430,7 +434,7 @@ const WardenSettings = () => {
                     <ul className="text-sm text-gray-600 space-y-1">
                       <li className="flex items-center">
                         <FaCheck className="h-3 w-3 text-green-500 mr-2" />
-                        At least 6 characters long
+                        At least 8 characters long and include a special character (@$!%*?&)
                       </li>
                       <li className="flex items-center">
                         <FaCheck className="h-3 w-3 text-green-500 mr-2" />
@@ -455,7 +459,7 @@ const WardenSettings = () => {
                       ) : (
                         <FaSave className="mr-2" />
                       )}
-                      {loading ? 'Changing Password...' : 'Change Password'}
+                      {loading ? 'Updating...' : 'Update Password'}
                     </button>
                   </div>
                 </form>

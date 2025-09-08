@@ -1,12 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import AdminLayout from '../../components/AdminLayout';
-import { FaCalendarCheck, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
-import { supabase } from '../../lib/supabase';
+import React, { useState, useEffect } from 'react'; // React core + hooks
+import AdminLayout from '../../components/AdminLayout'; // Admin layout wrapper
+import { FaCalendarCheck, FaPlus, FaEdit, FaTrash, FaArrowLeft } from 'react-icons/fa'; // Icons for rules UI
+import { supabase } from '../../lib/supabase'; // Supabase client (null means REST fallback)
+
+// Section: Component blueprint
+// - State: rules list, loading status, modal visibility, editing item, UI message, validation errors, form data
+// - Config: picks Supabase vs REST and sets API base URL
+// - Effects: load rules on mount
+// - API: test connection, fetch rules, save (create/update), delete
+// - Handlers: submit/edit/delete, helpers for array fields
+// - Render: loading gate, action bar, feedback message, rules table, modal form
 
 const VisitRules = () => {
   const [visitRules, setVisitRules] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [formErrors, setFormErrors] = useState({});
@@ -198,7 +206,7 @@ const VisitRules = () => {
 
       if (response.ok) {
         const result = await response.json();
-        setShowAddModal(false);
+        setShowForm(false);
         setEditingRule(null);
         fetchVisitRules();
         showMessage('success', 'Rule saved successfully with all fields!');
@@ -273,7 +281,7 @@ const VisitRules = () => {
 
     console.log('🔧 SETTING FORM DATA:', newFormData);
     setFormData(newFormData);
-    setShowAddModal(true);
+    setShowForm(true);
     clearFormErrors();
     setMessage({ type: '', text: '' });
   };
@@ -378,50 +386,12 @@ const VisitRules = () => {
               </div>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  // Add a sample rule with all fields filled
-                  const sampleData = {
-                    title: "Sample Complete Rule",
-                    category: "family",
-                    rules: ["Sample rule 1", "Sample rule 2"],
-                    prohibitedItems: ["Weapons", "Drugs", "Cell phones"],
-                    allowedVisitorTypes: ["Family"],
-                    visitingHours: {
-                      maxVisitsPerMonth: 12,
-                      maxVisitDuration: 90,
-                      maxVisitorsPerSession: 4,
-                      minVisitorAge: 16
-                    },
-                    isActive: true
-                  };
 
-                  fetch('http://localhost:5000/api/admin/rules/visits', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': 'Bearer mock-token'
-                    },
-                    body: JSON.stringify(sampleData)
-                  })
-                  .then(response => response.json())
-                  .then(result => {
-                    console.log('Sample rule added:', result);
-                    fetchVisitRules();
-                    alert('Sample rule with all fields added successfully!');
-                  })
-                  .catch(error => {
-                    console.error('Error adding sample rule:', error);
-                    alert('Error adding sample rule');
-                  });
-                }}
-                className="bg-green-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors"
-              >
-                Add Sample Rule
-              </button>
               <button
                 onClick={() => {
-                  setShowAddModal(true);
+                  setShowForm(true);
+                  setEditingRule(null);
+                  resetForm();
                   clearFormErrors();
                   setMessage({ type: '', text: '' });
                 }}
@@ -477,119 +447,125 @@ const VisitRules = () => {
       )}
 
       {/* Rules Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {currentRules.map((rule) => (
-          <div key={rule._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900">{rule.title}</h3>
+      {!showForm && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {currentRules.map((rule) => (
+            <div key={rule._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-900">{rule.title}</h3>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    rule.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                    {rule.isActive ? 'Active' : 'Inactive'}
+                  </span>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  rule.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  {rule.isActive ? 'Active' : 'Inactive'}
-                </span>
-              </div>
 
-              <div className="space-y-4">
-                {rule.rules && rule.rules.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Rules:</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                      {rule.rules.slice(0, 3).map((r, index) => (
-                        <li key={index}>{r}</li>
-                      ))}
-                      {rule.rules.length > 3 && (
-                        <li className="text-gray-400">... and {rule.rules.length - 3} more</li>
+                <div className="space-y-4">
+                  {rule.rules && rule.rules.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">Rules:</h4>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
+                        {rule.rules.slice(0, 3).map((r, index) => (
+                          <li key={index}>{r}</li>
+                        ))}
+                        {rule.rules.length > 3 && (
+                          <li className="text-gray-400">... and {rule.rules.length - 3} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {rule.prohibitedItems && rule.prohibitedItems.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">Prohibited Items:</h4>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
+                        {rule.prohibitedItems.slice(0, 2).map((item, index) => (
+                          <li key={index}>{item}</li>
+                        ))}
+                        {rule.prohibitedItems.length > 2 && (
+                          <li className="text-gray-400">... and {rule.prohibitedItems.length - 2} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {rule.allowedVisitorTypes && rule.allowedVisitorTypes.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">Allowed Visitors:</h4>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
+                        {rule.allowedVisitorTypes.slice(0, 2).map((type, index) => (
+                          <li key={index}>{type}</li>
+                        ))}
+                        {rule.allowedVisitorTypes.length > 2 && (
+                          <li className="text-gray-400">... and {rule.allowedVisitorTypes.length - 2} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {rule.visitingHours && (
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">Visiting Hours Configuration:</h4>
+                      <div className="text-sm text-gray-600 grid grid-cols-2 gap-2 bg-gray-50 p-3 rounded-lg">
+                        <span>Max visits/month: <strong>{rule.visitingHours.maxVisitsPerMonth}</strong></span>
+                        <span>Max duration: <strong>{rule.visitingHours.maxVisitDuration} min</strong></span>
+                        <span>Max visitors: <strong>{rule.visitingHours.maxVisitorsPerSession}</strong></span>
+                        <span>Min visitor age: <strong>{rule.visitingHours.minVisitorAge} years</strong></span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t border-gray-200">
+                    <span>Category: <strong>{rule.category}</strong></span>
+                    <div className="text-right">
+                      <div>Created: {new Date(rule.createdAt).toLocaleDateString()}</div>
+                      {rule.updatedAt && rule.updatedAt !== rule.createdAt && (
+                        <div>Updated: {new Date(rule.updatedAt).toLocaleDateString()}</div>
                       )}
-                    </ul>
-                  </div>
-                )}
-
-                {rule.prohibitedItems && rule.prohibitedItems.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Prohibited Items:</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                      {rule.prohibitedItems.slice(0, 2).map((item, index) => (
-                        <li key={index}>{item}</li>
-                      ))}
-                      {rule.prohibitedItems.length > 2 && (
-                        <li className="text-gray-400">... and {rule.prohibitedItems.length - 2} more</li>
-                      )}
-                    </ul>
-                  </div>
-                )}
-
-                {rule.allowedVisitorTypes && rule.allowedVisitorTypes.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Allowed Visitors:</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                      {rule.allowedVisitorTypes.slice(0, 2).map((type, index) => (
-                        <li key={index}>{type}</li>
-                      ))}
-                      {rule.allowedVisitorTypes.length > 2 && (
-                        <li className="text-gray-400">... and {rule.allowedVisitorTypes.length - 2} more</li>
-                      )}
-                    </ul>
-                  </div>
-                )}
-
-                {rule.visitingHours && (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Visiting Hours Configuration:</h4>
-                    <div className="text-sm text-gray-600 grid grid-cols-2 gap-2 bg-gray-50 p-3 rounded-lg">
-                      <span>Max visits/month: <strong>{rule.visitingHours.maxVisitsPerMonth}</strong></span>
-                      <span>Max duration: <strong>{rule.visitingHours.maxVisitDuration} min</strong></span>
-                      <span>Max visitors: <strong>{rule.visitingHours.maxVisitorsPerSession}</strong></span>
-                      <span>Min visitor age: <strong>{rule.visitingHours.minVisitorAge} years</strong></span>
                     </div>
                   </div>
-                )}
+                </div>
 
-                <div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t border-gray-200">
-                  <span>Category: <strong>{rule.category}</strong></span>
-                  <div className="text-right">
-                    <div>Created: {new Date(rule.createdAt).toLocaleDateString()}</div>
-                    {rule.updatedAt && rule.updatedAt !== rule.createdAt && (
-                      <div>Updated: {new Date(rule.updatedAt).toLocaleDateString()}</div>
-                    )}
-                  </div>
+                <div className="flex gap-2 mt-6">
+                  <button
+                    onClick={() => handleEdit(rule)}
+                    className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FaEdit /> Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(rule._id)}
+                    className="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FaTrash /> Delete
+                  </button>
                 </div>
               </div>
-
-              <div className="flex gap-2 mt-6">
-                <button
-                  onClick={() => handleEdit(rule)}
-                  className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <FaEdit /> Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(rule._id)}
-                  className="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <FaTrash /> Delete
-                </button>
-              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {/* Add/Edit Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 max-w-4xl w-full mx-4 max-h-screen overflow-y-auto">
-            <h3 className="text-2xl font-bold text-gray-900 mb-6">
-              {editingRule ? 'Edit' : 'Add'} Visit Rule
-            </h3>
-            
+      {/* Add/Edit Form (inline) */}
+      {showForm && (
+        <div className="flex justify-center">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8 w-full max-w-4xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-gray-900">{editingRule ? 'Edit Visit Rule' : 'Add Visit Rule'}</h3>
+              <button
+                onClick={() => { setShowForm(false); setEditingRule(null); resetForm(); }}
+                className="inline-flex items-center text-indigo-600 hover:underline"
+                type="button"
+              >
+                <FaArrowLeft className="mr-1" /> Back to list
+              </button>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Debug info */}
-              <div className="bg-gray-100 p-2 rounded text-xs">
-                <strong>Debug:</strong> Title: "{formData.title}", Editing: {editingRule ? editingRule._id : 'None'}
-              </div>
+
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -791,7 +767,7 @@ const VisitRules = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setShowAddModal(false);
+                    setShowForm(false);
                     setEditingRule(null);
                     resetForm();
                     setMessage({ type: '', text: '' });
@@ -816,3 +792,9 @@ const VisitRules = () => {
 };
 
 export default VisitRules;
+
+// File purpose: Admin page to create, edit, delete, and list visitor rules; supports Supabase or REST API.
+// Frontend location: Route /admin/visit-rules (Admin > Visit Rules) via App.jsx routing.
+// Backend endpoints used: REST fallback GET/POST/PUT/DELETE http://localhost:5000/api/admin/rules/visits (when not using Supabase).
+// Auth: Requires Bearer token from sessionStorage/localStorage.
+// UI container: AdminLayout; forms and tables styled with Tailwind.

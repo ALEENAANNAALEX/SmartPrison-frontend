@@ -21,6 +21,14 @@ export default function Home() {
   const { user, isAuthenticated, logout, clearAllAuthData } = useAuth(); // Use AuthContext instead of local state
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
+  const [settings, setSettings] = useState({
+    general: {
+      prisonName: 'Smart Prison Management System',
+      address: 'Poojappura, Thiruvananthapuram - 695012, Kerala',
+      phone: '+91 471 2308000',
+      email: 'info@smartprison.kerala.gov.in'
+    }
+  });
   const aboutRef = useRef(null);
   const featuresRef = useRef(null);
   const galleryRef = useRef(null);
@@ -28,6 +36,32 @@ export default function Home() {
 
   // Array of background images for rotation
   const backgroundImages = [prisonBg, p1, p2, p3, p4, p5];
+
+  // Fetch settings for contact information
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/admin/public-settings');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.settings.general) {
+            setSettings(prev => ({
+              ...prev,
+              general: {
+                ...prev.general,
+                ...data.settings.general
+              }
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+        // Keep default values if fetch fails
+      }
+    };
+
+    fetchSettings();
+  }, []);
 
   const scrollToRef = (ref) => {
     if (ref.current) {
@@ -640,7 +674,7 @@ export default function Home() {
             </h2>
             <div className="w-24 h-1 bg-white mx-auto mb-8"></div>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Get in touch with the Department of Prisons and Correctional Services
+              Get in touch with {settings.general.prisonName}
             </p>
           </div>
 
@@ -657,7 +691,7 @@ export default function Home() {
                     </div>
                     <div>
                       <h4 className="font-semibold text-gray-900">Address</h4>
-                      <p className="text-gray-600">Poojappura, Thiruvananthapuram - 695012, Kerala</p>
+                      <p className="text-gray-600">{settings.general.address}</p>
                     </div>
                   </div>
                   <div className="flex items-start space-x-4">
@@ -668,7 +702,7 @@ export default function Home() {
                     </div>
                     <div>
                       <h4 className="font-semibold text-gray-900">Phone</h4>
-                      <p className="text-gray-600">+91 471 2345678</p>
+                      <p className="text-gray-600">{settings.general.phone}</p>
                     </div>
                   </div>
                   <div className="flex items-start space-x-4">
@@ -680,7 +714,7 @@ export default function Home() {
                     </div>
                     <div>
                       <h4 className="font-semibold text-gray-900">Email</h4>
-                      <p className="text-gray-600">contact@keralaprison.gov.in</p>
+                      <p className="text-gray-600">{settings.general.email}</p>
                     </div>
                   </div>
                 </div>

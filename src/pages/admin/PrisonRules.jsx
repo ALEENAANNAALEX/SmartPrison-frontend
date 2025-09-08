@@ -1,11 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import AdminLayout from '../../components/AdminLayout';
-import { FaShieldAlt, FaPlus, FaEdit, FaTrash, FaEye } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react'; // React + hooks
+import AdminLayout from '../../components/AdminLayout'; // Admin layout wrapper
+import { FaShieldAlt, FaPlus, FaEdit, FaTrash, FaArrowLeft } from 'react-icons/fa'; // Icons for prison rules UI
+
+// Section: Component blueprint
+// - State: rules list, loading, modal visibility, editing rule, message, formErrors, selectedRule
+// - Form: formData with severity and consequences, and applicable blocks
+// - Effects: fetch rules on mount
+// - API: CRUD for prison rules
+// - Handlers: submit, edit, delete; mapping for severity to backend
+// - Render: rules grid/list, details modal, edit modal
 
 const PrisonRules = () => {
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showForm, setShowForm] = useState(false); // inline form instead of modal
   const [editingRule, setEditingRule] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [formErrors, setFormErrors] = useState({});
@@ -14,9 +22,7 @@ const PrisonRules = () => {
     title: '',
     description: '',
     category: 'general',
-    ruleNumber: '',
     severity: 'medium',
-    consequences: [''],
     applicableBlocks: [],
     isActive: true
   });
@@ -60,10 +66,15 @@ const PrisonRules = () => {
         const data = await response.json();
         if (data.success) {
           setRules(data.rules);
+        } else {
+          showMessage('error', 'Failed to fetch rules');
         }
+      } else {
+        showMessage('error', `Failed to fetch rules: ${response.status}`);
       }
     } catch (error) {
-
+      console.error('Error fetching rules:', error);
+      showMessage('error', 'Network error fetching rules');
     } finally {
       setLoading(false);
     }
@@ -105,9 +116,7 @@ const PrisonRules = () => {
         title: formData.title.trim(),
         description: formData.description.trim(),
         category: formData.category || 'general',
-        ruleNumber: formData.ruleNumber.trim() || '',
         severity: formData.severity || 'medium',
-        rules, // send rules array of objects
         applicableBlocks: formData.applicableBlocks || [],
         isActive: formData.isActive,
         createdAt: editingRule ? editingRule.createdAt : new Date().toISOString(),
@@ -126,7 +135,7 @@ const PrisonRules = () => {
       if (response.ok) {
         const result = await response.json();
         fetchRules();
-        setShowAddModal(false);
+        setShowForm(false);
         setEditingRule(null);
         resetForm();
         showMessage('success', 'Rule saved successfully!');
@@ -154,9 +163,7 @@ const PrisonRules = () => {
       title: '',
       description: '',
       category: 'general',
-      ruleNumber: '',
       severity: 'medium',
-      consequences: [''],
       applicableBlocks: [],
       isActive: true
     });
@@ -178,7 +185,7 @@ const PrisonRules = () => {
       applicableBlocks: rule.applicableBlocks || [],
       isActive: rule.isActive !== false
     });
-    setShowAddModal(true);
+    setShowForm(true); // open inline form
   };
 
   const handleDelete = async (ruleId) => {
@@ -209,7 +216,8 @@ const PrisonRules = () => {
           showMessage('error', `Error deleting rule: ${response.status} ${response.statusText || ''} - ${errorText}`);
         }
       } catch (error) {
-  
+        console.error('Error deleting rule:', error);
+        showMessage('error', 'Network error deleting rule');
       }
     }
   };
@@ -299,7 +307,7 @@ const PrisonRules = () => {
               Add Sample Rule
             </button>
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={() => { setShowForm(true); setEditingRule(null); resetForm(); }}
               className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
             >
               <FaPlus /> Add New Rule
@@ -351,125 +359,128 @@ const PrisonRules = () => {
       )}
 
       {/* Rules Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {rules.map((rule) => (
-          <div key={rule._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-xl font-semibold text-gray-900">{rule.title}</h3>
-                    {rule.ruleNumber && (
-                      <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-sm font-mono">
-                        #{rule.ruleNumber}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-gray-600">{rule.description}</p>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    rule.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {rule.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    rule.severity === 'high' ? 'bg-red-100 text-red-800' :
-                    rule.severity === 'medium' ? 'bg-orange-100 text-orange-800' :
-                    'bg-green-100 text-green-800'
-                  }`}>
-                    {rule.severity} severity
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-4">
+      {!editingRule && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {rules.map((rule) => (
+            <div key={rule._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
                   <div>
-                    <span className="text-sm font-medium text-gray-700">Category: </span>
-                    <span className="text-sm text-gray-600 capitalize">{rule.category}</span>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-xl font-semibold text-gray-900">{rule.title}</h3>
+                      {rule.ruleNumber && (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-sm font-mono">
+                          #{rule.ruleNumber}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-gray-600">{rule.description}</p>
                   </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Severity: </span>
-                    <span className={`text-sm font-medium ${
-                      rule.severity === 'high' ? 'text-red-600' :
-                      rule.severity === 'medium' ? 'text-orange-600' :
-                      'text-green-600'
+                  <div className="flex flex-col items-end gap-2">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      rule.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                     }`}>
-                      {rule.severity}
+                      {rule.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      rule.severity === 'high' ? 'bg-red-100 text-red-800' :
+                      rule.severity === 'medium' ? 'bg-orange-100 text-orange-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {rule.severity} severity
                     </span>
                   </div>
                 </div>
 
-                {rule.ruleNumber && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Rule Number: </span>
-                    <span className="text-sm text-gray-600 font-mono">#{rule.ruleNumber}</span>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Category: </span>
+                      <span className="text-sm text-gray-600 capitalize">{rule.category}</span>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Severity: </span>
+                      <span className={`text-sm font-medium ${
+                        rule.severity === 'high' ? 'text-red-600' :
+                        rule.severity === 'medium' ? 'text-orange-600' :
+                        'text-green-600'
+                      }`}>
+                        {rule.severity}
+                      </span>
+                    </div>
                   </div>
-                )}
 
-                {rule.consequences && rule.consequences.length > 0 && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Consequences:</span>
-                    <ul className="list-disc list-inside mt-1 text-sm text-gray-600">
-                      {rule.consequences.slice(0, 2).map((consequence, index) => (
-                        <li key={index}>{consequence}</li>
-                      ))}
-                      {rule.consequences.length > 2 && (
-                        <li className="text-gray-400">... and {rule.consequences.length - 2} more</li>
-                      )}
-                    </ul>
-                  </div>
-                )}
-
-                {rule.applicableBlocks && rule.applicableBlocks.length > 0 && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Applicable Blocks: </span>
-                    <span className="text-sm text-gray-600">{rule.applicableBlocks.join(', ')}</span>
-                  </div>
-                )}
-
-                <div className="text-sm text-gray-500">
-                  Created: {new Date(rule.createdAt).toLocaleDateString()}
-                  {rule.updatedAt && rule.updatedAt !== rule.createdAt && (
-                    <span className="ml-2">• Updated: {new Date(rule.updatedAt).toLocaleDateString()}</span>
+                  {rule.ruleNumber && (
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Rule Number: </span>
+                      <span className="text-sm text-gray-600 font-mono">#{rule.ruleNumber}</span>
+                    </div>
                   )}
+
+                  {rule.consequences && rule.consequences.length > 0 && (
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Consequences:</span>
+                      <ul className="list-disc list-inside mt-1 text-sm text-gray-600">
+                        {rule.consequences.slice(0, 2).map((consequence, index) => (
+                          <li key={index}>{consequence}</li>
+                        ))}
+                        {rule.consequences.length > 2 && (
+                          <li className="text-gray-400">... and {rule.consequences.length - 2} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {rule.applicableBlocks && rule.applicableBlocks.length > 0 && (
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Applicable Blocks: </span>
+                      <span className="text-sm text-gray-600">{rule.applicableBlocks.join(', ')}</span>
+                    </div>
+                  )}
+
+                  <div className="text-sm text-gray-500">
+                    Created: {new Date(rule.createdAt).toLocaleDateString()}
+                    {rule.updatedAt && rule.updatedAt !== rule.createdAt && (
+                      <span className="ml-2">• Updated: {new Date(rule.updatedAt).toLocaleDateString()}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-6">
+                  <button
+                    onClick={() => handleEdit(rule)}
+                    className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FaEdit /> Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(rule._id)}
+                    className="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FaTrash /> Delete
+                  </button>
                 </div>
               </div>
-
-              <div className="flex gap-2 mt-6">
-                <button
-                  onClick={() => setSelectedRule(rule)}
-                  className="flex-1 bg-gray-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <FaEye /> View
-                </button>
-                <button
-                  onClick={() => handleEdit(rule)}
-                  className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <FaEdit /> Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(rule._id)}
-                  className="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <FaTrash /> Delete
-                </button>
-              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {/* Add/Edit Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
-            <h3 className="text-2xl font-bold text-gray-900 mb-6">
-              {editingRule ? 'Edit' : 'Add'} Prison Rule
-            </h3>
-            
+      {/* Add/Edit Form (inline) */}
+      {showForm && (
+        <div className="flex justify-center">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8 w-full max-w-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-gray-900">{editingRule ? 'Edit Rule' : 'Add New Rule'}</h3>
+              <button
+                onClick={() => { setShowForm(false); setEditingRule(null); resetForm(); }}
+                className="inline-flex items-center text-indigo-600 hover:underline"
+                type="button"
+              >
+                <FaArrowLeft className="mr-1" /> Back to list
+              </button>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -590,7 +601,7 @@ const PrisonRules = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setShowAddModal(false);
+                    setShowForm(false);
                     setEditingRule(null);
                     resetForm();
                   }}
@@ -610,97 +621,16 @@ const PrisonRules = () => {
         </div>
       )}
 
-      {/* View Rule Modal */}
-      {selectedRule && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
-            <h3 className="text-2xl font-bold text-gray-900 mb-6">Prison Rule Details</h3>
-            
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Title</label>
-                  <p className="text-gray-900">{selectedRule.title}</p>
-                </div>
-                {selectedRule.ruleNumber && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Rule Number</label>
-                    <p className="text-gray-900 font-mono">#{selectedRule.ruleNumber}</p>
-                  </div>
-                )}
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <p className="text-gray-900 bg-gray-50 p-3 rounded-lg">{selectedRule.description}</p>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Category</label>
-                  <p className="text-gray-900 capitalize">{selectedRule.category}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Severity</label>
-                  <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
-                    selectedRule.severity === 'high' ? 'bg-red-100 text-red-800' :
-                    selectedRule.severity === 'medium' ? 'bg-orange-100 text-orange-800' :
-                    'bg-green-100 text-green-800'
-                  }`}>
-                    {selectedRule.severity}
-                  </span>
-                </div>
-              </div>
-              
-              {selectedRule.consequences && selectedRule.consequences.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Consequences</label>
-                  <ul className="list-disc list-inside space-y-1 text-gray-900 bg-gray-50 p-3 rounded-lg">
-                    {selectedRule.consequences.map((consequence, index) => (
-                      <li key={index}>{consequence}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Status</label>
-                  <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
-                    selectedRule.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {selectedRule.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Created</label>
-                  <p className="text-gray-900">{new Date(selectedRule.createdAt).toLocaleDateString()}</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex gap-4 pt-6">
-              <button
-                onClick={() => setSelectedRule(null)}
-                className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition-colors"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedRule(null);
-                  handleEdit(selectedRule);
-                }}
-                className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
-              >
-                Edit Rule
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* View Rule Modal removed to keep UI simpler and inline */}
+      {false && selectedRule && null}
     </AdminLayout>
   );
 };
 
 export default PrisonRules;
+
+// File purpose: Admin page to manage prison rules/regulations with severity mapping and applicable blocks.
+// Frontend location: Route /admin/prison-rules (Admin > Prison Rules) via App.jsx routing.
+// Backend endpoints used: GET/POST/PUT/DELETE http://localhost:5000/api/admin/rules/prison.
+// Auth: Requires Bearer token from sessionStorage/localStorage.
+// UI container: AdminLayout; grid of rule cards and edit modal.
