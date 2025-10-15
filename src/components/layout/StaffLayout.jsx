@@ -14,7 +14,8 @@ import {
   FaSignOutAlt,
   FaHome,
   FaExclamationTriangle,
-  FaStar
+  FaStar,
+  FaUserCheck
 } from 'react-icons/fa';
 
 const StaffLayout = ({ children, title, subtitle }) => {
@@ -37,6 +38,7 @@ const StaffLayout = ({ children, title, subtitle }) => {
     { path: '/staff/inmates', icon: FaUsers, label: 'View Inmates' },
     { path: '/staff/attendance', icon: FaCamera, label: 'Face Recognition Attendance' },
     { path: '/staff/behavior-ratings', icon: FaStar, label: 'Behavior Ratings' },
+    { path: '/staff/verify-visitor', icon: FaUserCheck, label: 'Verify Visitor' },
 
     // REPORTS & INCIDENTS
     { section: 'REPORTS & INCIDENTS' },
@@ -107,9 +109,9 @@ const StaffLayout = ({ children, title, subtitle }) => {
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+            className="w-full bg-white/10 hover:bg-white/20 transition-colors duration-200 px-4 py-3 rounded-lg flex items-center justify-center gap-3 font-medium"
           >
-            <FaSignOutAlt className="mr-2" />
+            <FaSignOutAlt className="text-lg" />
             <span>Logout</span>
           </button>
         </div>

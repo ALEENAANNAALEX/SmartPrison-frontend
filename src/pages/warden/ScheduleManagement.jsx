@@ -1,127 +1,458 @@
 import React, { useState, useEffect } from 'react';
 import WardenLayout from '../../components/layout/WardenLayout';
+import InteractiveScheduleMap from '../../components/InteractiveScheduleMap';
+// Removed: AutoScheduleManager and AIScheduleEditor
+import WorkloadAnalyzer from '../../components/WorkloadAnalyzer';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import { 
   FaCalendarAlt, 
-  FaClock, 
-  FaPlus, 
-  FaEdit, 
+  FaSearch, 
+  FaFilter, 
+  FaPlus,
+  FaEye, 
+  FaEdit,
   FaTrash,
+  FaClock,
   FaUsers,
   FaMapMarkerAlt,
+  FaUserTie,
+  FaCheckCircle,
+  FaExclamationTriangle,
   FaChevronLeft,
   FaChevronRight,
-  FaFilter,
-  FaDownload
+  FaDownload,
+  FaArrowLeft,
+  FaRobot,
+  FaCogs,
+  FaChartLine
 } from 'react-icons/fa';
 
 const ScheduleManagement = () => {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedView, setSelectedView] = useState('week'); // week, month, day
   const [schedules, setSchedules] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [notification, setNotification] = useState(null);
+  const [staffMap, setStaffMap] = useState({});
+  const [initialSelected, setInitialSelected] = useState(null);
+  
+  // View mode state - keep only 'map' and 'workload-analyzer'
+  const [viewMode, setViewMode] = useState('map');
 
-  // Mock schedule data
+  // Form states for adding new schedules
+  const [scheduleForm, setScheduleForm] = useState({
+    title: '',
+    type: 'Security',
+    date: '',
+    startTime: '',
+    endTime: '',
+    location: '',
+    description: '',
+    priority: 'Medium',
+    assignedStaff: []
+  });
+
+  // Mock data for schedules
   const mockSchedules = [
     {
       id: 1,
-      title: 'Morning Headcount',
+      title: 'Morning Security Patrol',
       type: 'Security',
-      time: '06:00',
-      duration: '30 min',
-      location: 'All Blocks',
-      assignedStaff: ['Officer Wilson', 'Officer Brown'],
       date: '2024-01-22',
+      startTime: '06:00',
+      endTime: '08:00',
+      location: 'All Blocks',
+      assignedStaff: ['John Smith', 'Sarah Wilson'],
       status: 'Scheduled',
-      priority: 'High'
+      priority: 'High',
+      description: 'Regular morning security patrol of all prison blocks'
     },
     {
       id: 2,
-      title: 'Breakfast Service',
-      type: 'Meal',
-      time: '07:00',
-      duration: '90 min',
-      location: 'Cafeteria',
-      assignedStaff: ['Kitchen Staff', 'Security Team'],
+      title: 'Medical Checkup - Block A',
+      type: 'Medical',
       date: '2024-01-22',
+      startTime: '09:00',
+      endTime: '12:00',
+      location: 'Block A',
+      assignedStaff: ['Dr. Michael Brown', 'Nurse Lisa Chen'],
       status: 'In Progress',
-      priority: 'Medium'
+      priority: 'Medium',
+      description: 'Monthly health checkup for inmates in Block A'
     },
     {
       id: 3,
-      title: 'Medical Rounds',
-      type: 'Medical',
-      time: '09:00',
-      duration: '120 min',
-      location: 'Medical Wing',
-      assignedStaff: ['Dr. Brown', 'Nurse Johnson'],
+      title: 'Rehabilitation Session',
+      type: 'Rehabilitation',
       date: '2024-01-22',
+      startTime: '14:00',
+      endTime: '16:00',
+      location: 'Counseling Center',
+      assignedStaff: ['Dr. Emily Rodriguez'],
       status: 'Scheduled',
-      priority: 'High'
+      priority: 'Medium',
+      description: 'Group therapy session for behavioral improvement'
     },
     {
       id: 4,
-      title: 'Recreation Time',
-      type: 'Recreation',
-      time: '14:00',
-      duration: '60 min',
-      location: 'Yard',
-      assignedStaff: ['Officer Rodriguez', 'Officer Davis'],
+      title: 'Kitchen Duty Rotation',
+      type: 'Work',
       date: '2024-01-22',
-      status: 'Scheduled',
-      priority: 'Low'
+      startTime: '05:00',
+      endTime: '07:00',
+      location: 'Kitchen',
+      assignedStaff: ['Chef Martinez', 'Guard Thompson'],
+      status: 'Completed',
+      priority: 'Low',
+      description: 'Breakfast preparation with inmate work crew'
     },
     {
       id: 5,
-      title: 'Counseling Sessions',
-      type: 'Rehabilitation',
-      time: '10:00',
-      duration: '180 min',
-      location: 'Counseling Center',
-      assignedStaff: ['Lisa Chen', 'Dr. Martinez'],
-      date: '2024-01-23',
+      title: 'Visitor Hours',
+      type: 'Visitation',
+      date: '2024-01-22',
+      startTime: '13:00',
+      endTime: '17:00',
+      location: 'Visitor Center',
+      assignedStaff: ['Officer Davis', 'Officer Johnson'],
       status: 'Scheduled',
-      priority: 'Medium'
+      priority: 'Medium',
+      description: 'Regular visiting hours for family and legal visits'
     }
   ];
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setSchedules(mockSchedules);
-      setLoading(false);
-    }, 1000);
+    loadSchedules();
+    loadStaff();
   }, []);
 
-  const getTypeColor = (type) => {
-    const colors = {
-      'Security': 'bg-red-100 text-red-800 border-red-200',
-      'Medical': 'bg-green-100 text-green-800 border-green-200',
-      'Meal': 'bg-blue-100 text-blue-800 border-blue-200',
-      'Recreation': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      'Rehabilitation': 'bg-purple-100 text-purple-800 border-purple-200',
-      'Maintenance': 'bg-gray-100 text-gray-800 border-gray-200'
-    };
-    return colors[type] || 'bg-gray-100 text-gray-800 border-gray-200';
+  const loadSchedules = async () => {
+    try {
+      setLoading(true);
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      const API_BASE = (typeof window !== 'undefined' && window.location && window.location.origin.includes('localhost')) ? 'http://localhost:5000' : '';
+      const response = await fetch(`${API_BASE}/api/warden/schedules`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Ensure client does not hold onto auto-scheduled opposite-shift entries when user just generated a single shift
+        setSchedules((data.schedules || []).map(s => ({ ...s })));
+      } else {
+        // Fallback to mock data if API fails
+        setSchedules(mockSchedules);
+      }
+    } catch (error) {
+      console.error('Error loading schedules:', error);
+      // Fallback to mock data
+      setSchedules(mockSchedules);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getStatusColor = (status) => {
-    const colors = {
+  const loadStaff = async () => {
+    try {
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      const API_BASE = (typeof window !== 'undefined' && window.location && window.location.origin.includes('localhost')) ? 'http://localhost:5000' : '';
+      const res = await fetch(`${API_BASE}/api/warden/staff`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const map = {};
+        (data.staff || data.users || []).forEach(s => {
+          const id = s._id || s.id;
+          const name = s.name || s.email || 'Unknown';
+          if (id) map[id] = name;
+        });
+        setStaffMap(map);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const getStaffName = (staff) => {
+    if (typeof staff === 'object') {
+      const name = staff.name || staff.email || staff._id || 'Unknown';
+      return name;
+    }
+    const name = staffMap[staff] || 'Unknown';
+    return name;
+  };
+
+  // Mirror helper for Cells ↔ Dining Room per block
+  const getMirrorLocation = (location) => {
+    if (!location || typeof location !== 'string') return null;
+    const map = {
+      'Block A - Cells': 'Block A - Dining Room',
+      'Block A - Dining Room': 'Block A - Cells',
+      'Block B - Cells': 'Block B - Dining Room',
+      'Block B - Dining Room': 'Block B - Cells'
+    };
+    return map[location] || null;
+  };
+
+  const handleSubmitSchedule = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      const API_BASE = (typeof window !== 'undefined' && window.location && window.location.origin.includes('localhost')) ? 'http://localhost:5000' : '';
+      
+      // Clean the schedule form data - remove any _id field to avoid duplicate key errors
+      const cleanScheduleForm = { ...scheduleForm };
+      delete cleanScheduleForm._id;
+      delete cleanScheduleForm.id;
+      delete cleanScheduleForm.createdAt;
+      delete cleanScheduleForm.updatedAt;
+      delete cleanScheduleForm.__v; // Remove MongoDB version field
+      
+      console.log('🔍 Creating schedule with clean form data:', cleanScheduleForm);
+      
+      const response = await fetch(`${API_BASE}/api/warden/schedules`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(cleanScheduleForm)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSchedules(prev => [...prev, data.schedule]);
+        setNotification({ type: 'success', message: '✅ Schedule created successfully!' });
+        setScheduleForm({
+          title: '',
+          type: 'Security',
+          date: '',
+          startTime: '',
+          endTime: '',
+          location: '',
+          description: '',
+          priority: 'Medium',
+          assignedStaff: []
+        });
+        setShowAddForm(false);
+        setInitialSelected(data.schedule);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setNotification({ type: 'error', message: '❌ Failed to create schedule: ' + (errorData.message || 'Unknown error') });
+      }
+
+      setTimeout(() => setNotification(null), 5000);
+    } catch (error) {
+      console.error('Create schedule error:', error);
+      setNotification({ type: 'error', message: '❌ Failed to create schedule. Please try again.' });
+      setTimeout(() => setNotification(null), 5000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateSchedule = async (updatedSchedule) => {
+    try {
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      const API_BASE = (typeof window !== 'undefined' && window.location && window.location.origin.includes('localhost')) ? 'http://localhost:5000' : '';
+      const response = await fetch(`${API_BASE}/api/warden/schedules/${updatedSchedule._id || updatedSchedule.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedSchedule)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSchedules(prev => {
+          const updated = prev.map(schedule =>
+            schedule._id === data.schedule._id ? data.schedule : schedule
+          );
+          // REMOVED: Client-side mirror schedule creation to prevent duplicates
+          // const mirrorLoc = getMirrorLocation(data.schedule.location);
+          // if (mirrorLoc) {
+          //   // Sync or insert a client-side mirror so counts update instantly
+          //   const existingMirrorIndex = updated.findIndex(s => !s._id && s.clientMirror && s.location === mirrorLoc && new Date(s.date).toISOString() === new Date(data.schedule.date).toISOString());
+          //   const mirrorObj = {
+          //     ...data.schedule,
+          //     _id: undefined,
+          //     location: mirrorLoc,
+          //     clientMirror: true
+          //   };
+          //   if (existingMirrorIndex >= 0) {
+          //     updated[existingMirrorIndex] = mirrorObj;
+          //   } else {
+          //     updated.push(mirrorObj);
+          //   }
+          // }
+          return updated;
+        });
+        return true;
+      } else {
+        console.error('Failed to update schedule', await response.text());
+        return false;
+      }
+    } catch (error) {
+      console.error('Error updating schedule:', error);
+      return false;
+    }
+  };
+
+  const handleDeleteSchedule = async (scheduleId) => {
+    try {
+      if (scheduleId === 'refresh') {
+        loadSchedules();
+        return true;
+      }
+
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      const API_BASE = (typeof window !== 'undefined' && window.location && window.location.origin.includes('localhost')) ? 'http://localhost:5000' : '';
+      const response = await fetch(`${API_BASE}/api/warden/schedules/${scheduleId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        setSchedules(prev => prev.filter(schedule => schedule._id !== scheduleId));
+        return true;
+      } else {
+        console.error('Failed to delete schedule', await response.text());
+        return false;
+      }
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+      return false;
+    }
+  };
+
+  const handleAddSchedule = async (newSchedule) => {
+    // If no specific schedule provided (like after AI generation), reload all schedules
+    if (!newSchedule) {
+      console.log('🔄 Auto-reloading schedules after AI generation...');
+      await loadSchedules();
+      await loadStaff(); // Also reload staff to ensure staffMap is updated
+      return;
+    }
+
+    try {
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      const API_BASE = (typeof window !== 'undefined' && window.location && window.location.origin.includes('localhost')) ? 'http://localhost:5000' : '';
+      
+      // Clean the schedule data - remove any _id field to avoid duplicate key errors
+      const cleanScheduleData = { ...newSchedule };
+      delete cleanScheduleData._id;
+      delete cleanScheduleData.id;
+      delete cleanScheduleData.createdAt;
+      delete cleanScheduleData.updatedAt;
+      delete cleanScheduleData.__v; // Remove MongoDB version field
+      
+      console.log('🔍 Creating schedule with clean data:', cleanScheduleData);
+      
+      const response = await fetch(`${API_BASE}/api/warden/schedules`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(cleanScheduleData)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSchedules(prev => {
+          const next = [...prev, data.schedule];
+          // REMOVED: Client-side mirror schedule creation to prevent duplicates
+          // const mirrorLoc = getMirrorLocation(data.schedule.location);
+          // if (mirrorLoc) {
+          //   next.push({
+          //     ...data.schedule,
+          //     _id: undefined,
+          //     location: mirrorLoc,
+          //     clientMirror: true
+          //   });
+          // }
+          return next;
+        });
+        setInitialSelected(data.schedule);
+        return data.schedule;
+      } else {
+        console.error('Failed to create schedule', await response.text());
+        return null;
+      }
+    } catch (error) {
+      console.error('Error creating schedule:', error);
+      return null;
+    }
+  };
+
+  const filteredSchedules = schedules.filter(schedule => {
+    const matchesSearch = schedule.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         schedule.location.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = filterType === 'all' || schedule.type === filterType;
+    const matchesDate = !filterDate || new Date(schedule.date).toISOString().split('T')[0] === filterDate;
+    const matchesStatus = filterStatus === 'all' || schedule.status === filterStatus;
+    
+    return matchesSearch && matchesType && matchesDate && matchesStatus;
+  });
+
+  const getStatusBadge = (status) => {
+    const statusColors = {
       'Scheduled': 'bg-blue-100 text-blue-800',
-      'In Progress': 'bg-green-100 text-green-800',
-      'Completed': 'bg-gray-100 text-gray-800',
+      'In Progress': 'bg-yellow-100 text-yellow-800',
+      'Completed': 'bg-green-100 text-green-800',
       'Cancelled': 'bg-red-100 text-red-800'
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    
+    return `px-2 py-1 rounded-full text-xs font-medium ${statusColors[status] || 'bg-gray-100 text-gray-800'}`;
   };
 
-  const getPriorityColor = (priority) => {
-    const colors = {
-      'High': 'bg-red-500',
-      'Medium': 'bg-yellow-500',
-      'Low': 'bg-green-500'
+  const getPriorityBadge = (priority) => {
+    const priorityColors = {
+      'High': 'bg-red-100 text-red-800',
+      'Medium': 'bg-yellow-100 text-yellow-800',
+      'Low': 'bg-green-100 text-green-800'
     };
-    return colors[priority] || 'bg-gray-500';
+    
+    return `px-2 py-1 rounded-full text-xs font-medium ${priorityColors[priority] || 'bg-gray-100 text-gray-800'}`;
+  };
+
+  const getTypeBadge = (type) => {
+    const typeColors = {
+      'Security': 'bg-red-100 text-red-800',
+      'Medical': 'bg-blue-100 text-blue-800',
+      'Rehabilitation': 'bg-green-100 text-green-800',
+      'Work': 'bg-orange-100 text-orange-800',
+      'Visitation': 'bg-purple-100 text-purple-800',
+      'Meal': 'bg-blue-100 text-blue-800',
+      'Recreation': 'bg-yellow-100 text-yellow-800',
+      'Maintenance': 'bg-gray-100 text-gray-800'
+    };
+    
+    return `px-2 py-1 rounded-full text-xs font-medium ${typeColors[type] || 'bg-gray-100 text-gray-800'}`;
+  };
+
+  const getTodaySchedules = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const d = now.getDate();
+    return schedules.filter(s => {
+      const sd = new Date(s.date);
+      return sd.getFullYear() === y && sd.getMonth() === m && sd.getDate() === d;
+    });
   };
 
   const formatDate = (date) => {
@@ -132,21 +463,6 @@ const ScheduleManagement = () => {
       day: 'numeric'
     });
   };
-
-  const getTodaySchedules = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return schedules.filter(schedule => schedule.date === today);
-  };
-
-  const getUpcomingSchedules = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return schedules.filter(schedule => schedule.date > today).slice(0, 5);
-  };
-
-  const filteredSchedules = schedules.filter(schedule => {
-    if (filterType === 'all') return true;
-    return schedule.type === filterType;
-  });
 
   if (loading) {
     return (
@@ -160,51 +476,158 @@ const ScheduleManagement = () => {
 
   return (
     <WardenLayout title="Schedule Management" subtitle="Manage daily activities and staff schedules">
-      <div className="space-y-6">
-        {/* Header Actions */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center space-x-4">
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            >
-              <option value="all">All Activities</option>
-              <option value="Security">Security</option>
-              <option value="Medical">Medical</option>
-              <option value="Meal">Meals</option>
-              <option value="Recreation">Recreation</option>
-              <option value="Rehabilitation">Rehabilitation</option>
-              <option value="Maintenance">Maintenance</option>
-            </select>
-            
-            <div className="flex items-center space-x-2">
-              <button className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-                <FaChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="px-4 py-2 text-sm font-medium">
-                {formatDate(currentDate)}
-              </span>
-              <button className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-                <FaChevronRight className="h-4 w-4" />
-              </button>
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-md ${
+          notification.type === 'success' ? 'bg-green-100 border border-green-400 text-green-700' : 'bg-red-100 border border-red-400 text-red-700'
+        }`}>
+          <div className="flex items-start">
+            <span className="mr-2">
+              {notification.type === 'success' ? '✅' : '❌'}
+            </span>
+            <div className="flex-1">
+              <p className="font-medium">{notification.message}</p>
             </div>
           </div>
-          
-          <div className="flex space-x-2">
-            <button className="flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-              <FaDownload className="mr-2" />
-              Export
-            </button>
-            <button className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-              <FaPlus className="mr-2" />
-              Add Schedule
-            </button>
-          </div>
         </div>
+      )}
+
+      <div className="space-y-6">
+        {/* Search and Filters - removed as requested */}
+
+        {/* Add New Schedule Form */}
+        {showAddForm && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Add New Schedule</h3>
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="inline-flex items-center text-indigo-600 hover:underline"
+              >
+                <FaArrowLeft className="mr-1" /> Back to list
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitSchedule} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Title</label>
+                  <input
+                    type="text"
+                    value={scheduleForm.title}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, title: e.target.value })}
+                    className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Type</label>
+                  <select
+                    value={scheduleForm.type}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, type: e.target.value })}
+                    className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="Security">Security</option>
+                    <option value="Medical">Medical</option>
+                    <option value="Rehabilitation">Rehabilitation</option>
+                    <option value="Work">Work</option>
+                    <option value="Visitation">Visitation</option>
+                    <option value="Meal">Meal</option>
+                    <option value="Recreation">Recreation</option>
+                    <option value="Maintenance">Maintenance</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Date</label>
+                  <input
+                    type="date"
+                    value={scheduleForm.date}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })}
+                    className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Start Time</label>
+                  <input
+                    type="time"
+                    value={scheduleForm.startTime}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, startTime: e.target.value })}
+                    className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">End Time</label>
+                  <input
+                    type="time"
+                    value={scheduleForm.endTime}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, endTime: e.target.value })}
+                    className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Location</label>
+                  <input
+                    type="text"
+                    value={scheduleForm.location}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, location: e.target.value })}
+                    className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Priority</label>
+                  <select
+                    value={scheduleForm.priority}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, priority: e.target.value })}
+                    className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <textarea
+                    value={scheduleForm.description}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, description: e.target.value })}
+                    className="mt-1 w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+                    rows="3"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+                >
+                  Back to list
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {loading ? 'Creating...' : 'Create Schedule'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 ${showAddForm ? 'hidden' : ''}`}>
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-blue-100">
@@ -219,8 +642,8 @@ const ScheduleManagement = () => {
           
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100">
-                <FaClock className="h-6 w-6 text-green-600" />
+              <div className="p-3 rounded-full bg-yellow-100">
+                <FaClock className="h-6 w-6 text-yellow-600" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">In Progress</p>
@@ -233,198 +656,86 @@ const ScheduleManagement = () => {
           
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-yellow-100">
-                <FaUsers className="h-6 w-6 text-yellow-600" />
+              <div className="p-3 rounded-full bg-green-100">
+                <FaCheckCircle className="h-6 w-6 text-green-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Staff Assigned</p>
-                <p className="text-2xl font-bold text-gray-900">24</p>
+                <p className="text-sm font-medium text-gray-600">Completed</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {schedules.filter(s => s.status === 'Completed').length}
+                </p>
               </div>
             </div>
           </div>
           
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-purple-100">
-                <FaMapMarkerAlt className="h-6 w-6 text-purple-600" />
+              <div className="p-3 rounded-full bg-red-100">
+                <FaExclamationTriangle className="h-6 w-6 text-red-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Locations</p>
-                <p className="text-2xl font-bold text-gray-900">8</p>
+                <p className="text-sm font-medium text-gray-600">High Priority</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {schedules.filter(s => s.priority === 'High').length}
+                </p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Today's Schedule */}
-          <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Today's Schedule</h3>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                {getTodaySchedules().map((schedule) => (
-                  <div key={schedule.id} className={`border rounded-lg p-4 ${getTypeColor(schedule.type)}`}>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <div className={`w-3 h-3 rounded-full ${getPriorityColor(schedule.priority)}`}></div>
-                          <h4 className="font-semibold text-gray-900">{schedule.title}</h4>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(schedule.status)}`}>
-                            {schedule.status}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                          <div className="flex items-center">
-                            <FaClock className="mr-2" />
-                            {schedule.time} ({schedule.duration})
-                          </div>
-                          <div className="flex items-center">
-                            <FaMapMarkerAlt className="mr-2" />
-                            {schedule.location}
-                          </div>
-                          <div className="flex items-center col-span-2">
-                            <FaUsers className="mr-2" />
-                            {schedule.assignedStaff.join(', ')}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2 ml-4">
-                        <button className="text-indigo-600 hover:text-indigo-900">
-                          <FaEdit className="h-4 w-4" />
-                        </button>
-                        <button className="text-red-600 hover:text-red-900">
-                          <FaTrash className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+        {/* View Mode Tabs */}
+        {!showAddForm && (
+          <div className="bg-white rounded-lg border border-gray-200 mb-6">
+            <div className="border-b border-gray-200">
+              <nav className="flex space-x-8 px-6">
+                <button
+                  onClick={() => setViewMode('map')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    viewMode === 'map'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <FaMapMarkerAlt className="inline mr-2" />
+                  Interactive Map
+                </button>
+                <button
+                  onClick={() => setViewMode('workload-analyzer')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    viewMode === 'workload-analyzer'
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <FaChartLine className="inline mr-2" />
+                  Workload Analysis
+                </button>
+              </nav>
             </div>
           </div>
+        )}
 
-          {/* Upcoming Activities */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Upcoming Activities</h3>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                {getUpcomingSchedules().map((schedule) => (
-                  <div key={schedule.id} className="border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <div className={`w-2 h-2 rounded-full ${getPriorityColor(schedule.priority)}`}></div>
-                      <h4 className="font-medium text-gray-900 text-sm">{schedule.title}</h4>
-                    </div>
-                    <div className="text-xs text-gray-600 space-y-1">
-                      <div className="flex items-center">
-                        <FaCalendarAlt className="mr-1" />
-                        {new Date(schedule.date).toLocaleDateString()}
-                      </div>
-                      <div className="flex items-center">
-                        <FaClock className="mr-1" />
-                        {schedule.time}
-                      </div>
-                      <div className="flex items-center">
-                        <FaMapMarkerAlt className="mr-1" />
-                        {schedule.location}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* All Schedules Table */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">
-              All Schedules ({filteredSchedules.length})
-            </h3>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Activity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date & Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Staff
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredSchedules.map((schedule) => (
-                  <tr key={schedule.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className={`w-3 h-3 rounded-full mr-3 ${getPriorityColor(schedule.priority)}`}></div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{schedule.title}</div>
-                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(schedule.type)}`}>
-                            {schedule.type}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {new Date(schedule.date).toLocaleDateString()}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {schedule.time} ({schedule.duration})
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm text-gray-900">
-                        <FaMapMarkerAlt className="mr-2 text-gray-400" />
-                        {schedule.location}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {schedule.assignedStaff.join(', ')}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(schedule.status)}`}>
-                        {schedule.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button className="text-indigo-600 hover:text-indigo-900">
-                          <FaEdit className="h-4 w-4" />
-                        </button>
-                        <button className="text-red-600 hover:text-red-900">
-                          <FaTrash className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* View Content */}
+        {!showAddForm && (
+          <ErrorBoundary>
+            {viewMode === 'map' && (
+              <InteractiveScheduleMap
+                schedules={filteredSchedules}
+                onUpdateSchedule={handleUpdateSchedule}
+                onDeleteSchedule={handleDeleteSchedule}
+                onAddSchedule={handleAddSchedule}
+                staffMap={staffMap}
+                getStaffName={getStaffName}
+                filterDate={filterDate}
+                setFilterDate={setFilterDate}
+              />
+            )}
+            
+            {viewMode === 'workload-analyzer' && (
+              <WorkloadAnalyzer />
+            )}
+          </ErrorBoundary>
+        )}
       </div>
     </WardenLayout>
   );

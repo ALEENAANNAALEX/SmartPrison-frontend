@@ -9,6 +9,10 @@ export default {
       fontFamily: {
         'inter': ['Inter', 'system-ui', 'sans-serif'],
       },
+      gridTemplateColumns: {
+        '15': 'repeat(15, minmax(0, 1fr))',
+        '20': 'repeat(20, minmax(0, 1fr))',
+      },
       colors: {
         primary: {
           50: '#eff6ff',

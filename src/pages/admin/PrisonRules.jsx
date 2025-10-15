@@ -14,6 +14,11 @@ const PrisonRules = () => {
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false); // inline form instead of modal
+  
+  // Debug showForm state changes
+  useEffect(() => {
+    console.log('showForm state changed:', showForm);
+  }, [showForm]);
   const [editingRule, setEditingRule] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [formErrors, setFormErrors] = useState({});
@@ -24,7 +29,8 @@ const PrisonRules = () => {
     category: 'general',
     severity: 'medium',
     applicableBlocks: [],
-    isActive: true
+    isActive: true,
+    consequences: [''] // Initialize with one empty consequence
   });
 
   // Severity mapping for backend compatibility
@@ -105,7 +111,7 @@ const PrisonRules = () => {
       const method = editingRule ? 'PUT' : 'POST';
 
       // Map consequences to rules array of objects as backend expects
-      const rules = formData.consequences.filter(c => c.trim() !== '').map((consequence, index) => ({
+      const rules = (formData.consequences || ['']).filter(c => c.trim() !== '').map((consequence, index) => ({
         ruleNumber: formData.ruleNumber || `R${Date.now()}-${index + 1}`,
         ruleText: consequence,
         severity: severityMap[formData.severity] || 'minor',
@@ -165,7 +171,8 @@ const PrisonRules = () => {
       category: 'general',
       severity: 'medium',
       applicableBlocks: [],
-      isActive: true
+      isActive: true,
+      consequences: [''] // Initialize with one empty consequence
     });
   };
 
@@ -225,12 +232,12 @@ const PrisonRules = () => {
   const addConsequence = () => {
     setFormData({
       ...formData,
-      consequences: [...formData.consequences, '']
+      consequences: [...(formData.consequences || ['']), '']
     });
   };
 
   const updateConsequence = (index, value) => {
-    const newConsequences = [...formData.consequences];
+    const newConsequences = [...(formData.consequences || [''])];
     newConsequences[index] = value;
     setFormData({
       ...formData,
@@ -239,7 +246,7 @@ const PrisonRules = () => {
   };
 
   const removeConsequence = (index) => {
-    const newConsequences = formData.consequences.filter((_, i) => i !== index);
+    const newConsequences = (formData.consequences || ['']).filter((_, i) => i !== index);
     setFormData({
       ...formData,
       consequences: newConsequences.length > 0 ? newConsequences : ['']
@@ -307,7 +314,12 @@ const PrisonRules = () => {
               Add Sample Rule
             </button>
             <button
-              onClick={() => { setShowForm(true); setEditingRule(null); resetForm(); }}
+              onClick={() => { 
+                console.log('Add New Rule button clicked!');
+                setShowForm(true); 
+                setEditingRule(null); 
+                resetForm(); 
+              }}
               className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
             >
               <FaPlus /> Add New Rule
@@ -358,8 +370,152 @@ const PrisonRules = () => {
         </div>
       )}
 
+      {/* Add/Edit Form (inline) */}
+      {showForm && (
+        <div className="flex justify-center">
+          {console.log('RENDERING FORM - showForm is true!')}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8 w-full max-w-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-gray-900">{editingRule ? 'Edit Rule' : 'Add New Rule'}</h3>
+              <button
+                onClick={() => { setShowForm(false); setEditingRule(null); resetForm(); }}
+                className="inline-flex items-center text-indigo-600 hover:underline"
+                type="button"
+              >
+                <FaArrowLeft className="mr-1" /> Back to list
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Rule Number</label>
+                <input
+                  type="text"
+                  value={formData.ruleNumber || ''}
+                  onChange={(e) => setFormData({...formData, ruleNumber: e.target.value})}
+                  placeholder="e.g., R001, 1.1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="general">General Conduct</option>
+                    <option value="security">Security</option>
+                    <option value="medical">Medical</option>
+                    <option value="disciplinary">Disciplinary</option>
+                    <option value="safety">Safety</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Severity</label>
+                  <select
+                    value={formData.severity}
+                    onChange={(e) => setFormData({...formData, severity: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Consequences</label>
+                {(formData.consequences || ['']).map((consequence, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={consequence}
+                      onChange={(e) => updateConsequence(index, e.target.value)}
+                      placeholder="Enter consequence..."
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    {(formData.consequences || ['']).length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeConsequence(index)}
+                        className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addConsequence}
+                  className="mt-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Add Consequence
+                </button>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="activeRule"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({...formData, isActive: e.target.checked})}
+                  className="mr-2"
+                />
+                <label htmlFor="activeRule" className="text-sm font-medium text-gray-700">
+                  Active Rule
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-4">
+                <button
+                  type="button"
+                  onClick={() => { setShowForm(false); setEditingRule(null); resetForm(); }}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  {editingRule ? 'Update Rule' : 'Create Rule'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Rules Grid */}
-      {!editingRule && (
+      {!editingRule && !showForm && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {rules.map((rule) => (
             <div key={rule._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -463,161 +619,6 @@ const PrisonRules = () => {
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Add/Edit Form (inline) */}
-      {showForm && (
-        <div className="flex justify-center">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8 w-full max-w-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-2xl font-bold text-gray-900">{editingRule ? 'Edit Rule' : 'Add New Rule'}</h3>
-              <button
-                onClick={() => { setShowForm(false); setEditingRule(null); resetForm(); }}
-                className="inline-flex items-center text-indigo-600 hover:underline"
-                type="button"
-              >
-                <FaArrowLeft className="mr-1" /> Back to list
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => setFormData({...formData, title: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Rule Number</label>
-                  <input
-                    type="text"
-                    value={formData.ruleNumber}
-                    onChange={(e) => setFormData({...formData, ruleNumber: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="e.g., R001, 1.1"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  rows="3"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({...formData, category: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="general">General Conduct</option>
-                    <option value="security">Security</option>
-                    <option value="safety">Safety</option>
-                    <option value="hygiene">Hygiene</option>
-                    <option value="visitation">Visitation</option>
-                    <option value="work">Work Programs</option>
-                    <option value="education">Education</option>
-                    <option value="medical">Medical</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Severity</label>
-                  <select
-                    value={formData.severity}
-                    onChange={(e) => setFormData({...formData, severity: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Consequences */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-sm font-medium text-gray-700">Consequences</label>
-                  <button
-                    type="button"
-                    onClick={addConsequence}
-                    className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
-                  >
-                    Add Consequence
-                  </button>
-                </div>
-                {formData.consequences.map((consequence, index) => (
-                  <div key={index} className="flex gap-2 mb-2">
-                    <input
-                      type="text"
-                      value={consequence}
-                      onChange={(e) => updateConsequence(index, e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Enter consequence..."
-                    />
-                    {formData.consequences.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeConsequence(index)}
-                        className="bg-red-600 text-white px-3 py-2 rounded hover:bg-red-700 transition-colors"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({...formData, isActive: e.target.checked})}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                />
-                <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
-                  Active Rule
-                </label>
-              </div>
-              
-              <div className="flex gap-4 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingRule(null);
-                    resetForm();
-                  }}
-                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors"
-                >
-                  {editingRule ? 'Update' : 'Create'} Rule
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
 

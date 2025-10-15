@@ -22,6 +22,23 @@ const LeaveRequests = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
+  const [viewingRequest, setViewingRequest] = useState(null);
+  const [notification, setNotification] = useState(null);
+
+  // Functions to handle details popup
+  const openViewDetails = (request) => {
+    setViewingRequest(request);
+  };
+
+  const closeViewDetails = () => {
+    setViewingRequest(null);
+  };
+
+  // Function to show notifications
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   // Mock data for leave requests
   const mockRequests = [
@@ -144,10 +161,15 @@ const LeaveRequests = () => {
   };
 
   const filteredRequests = requests.filter(request => {
-    const matchesSearch = request.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         request.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         request.department.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || request.status.toLowerCase() === filterStatus.toLowerCase();
+    // Handle both API response format and mock data format
+    const employeeName = request.staffName || request.employeeName || '';
+    const employeeId = request.staffEmail || request.employeeId || '';
+    const department = request.department || '';
+    
+    const matchesSearch = employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         department.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || (request.status || '').toLowerCase() === filterStatus.toLowerCase();
     const matchesType = filterType === 'all' || request.leaveType === filterType;
     
     return matchesSearch && matchesStatus && matchesType;
@@ -204,13 +226,13 @@ const LeaveRequests = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          alert('✅ Leave request approved successfully');
+          showNotification('✅ Leave request approved successfully', 'success');
           fetchRequests(); // Refresh the list
         } else {
-          alert(`❌ ${data.msg || 'Failed to approve request'}`);
+          showNotification(`❌ ${data.msg || 'Failed to approve request'}`, 'error');
         }
       } else {
-        alert('❌ Failed to approve request');
+        showNotification('❌ Failed to approve request', 'error');
       }
     } catch (error) {
       console.error('Approve request error:', error);
@@ -218,7 +240,7 @@ const LeaveRequests = () => {
       setRequests(requests.map(req =>
         req.id === requestId ? { ...req, status: 'Approved' } : req
       ));
-      alert('✅ Leave request approved (offline mode)');
+      showNotification('✅ Leave request approved (offline mode)', 'success');
     }
   };
 
@@ -240,13 +262,13 @@ const LeaveRequests = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          alert('✅ Leave request rejected successfully');
+          showNotification('✅ Leave request rejected successfully', 'success');
           fetchRequests(); // Refresh the list
         } else {
-          alert(`❌ ${data.msg || 'Failed to reject request'}`);
+          showNotification(`❌ ${data.msg || 'Failed to reject request'}`, 'error');
         }
       } else {
-        alert('❌ Failed to reject request');
+        showNotification('❌ Failed to reject request', 'error');
       }
     } catch (error) {
       console.error('Reject request error:', error);
@@ -254,7 +276,7 @@ const LeaveRequests = () => {
       setRequests(requests.map(req =>
         req.id === requestId ? { ...req, status: 'Rejected' } : req
       ));
-      alert('✅ Leave request rejected (offline mode)');
+      showNotification('✅ Leave request rejected (offline mode)', 'success');
     }
   };
 
@@ -387,10 +409,10 @@ const LeaveRequests = () => {
                     Leave Details
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Duration
+                    From
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Coverage
+                    To
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -404,17 +426,10 @@ const LeaveRequests = () => {
                 {filteredRequests.map((request) => (
                   <tr key={request.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                            <FaUser className="h-5 w-5 text-gray-600" />
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{request.employeeName}</div>
-                          <div className="text-sm text-gray-500">ID: {request.employeeId}</div>
-                          <div className="text-sm text-gray-500">{request.department} - {request.position}</div>
-                        </div>
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{request.staffName || request.employeeName || 'Unknown Staff'}</div>
+                        <div className="text-sm text-gray-500">ID: {request.requestId || request.employeeId || 'N/A'}</div>
+                        <div className="text-sm text-gray-500">{request.department || 'N/A'}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -423,24 +438,55 @@ const LeaveRequests = () => {
                           {request.leaveType}
                         </span>
                         <div className="text-sm text-gray-900">{request.reason}</div>
-                        <div className="text-xs text-gray-500 flex items-center">
-                          <FaCalendarAlt className="mr-1" />
-                          Applied: {new Date(request.appliedDate).toLocaleDateString()}
-                        </div>
+                        {request.appliedDate && (() => {
+                          try {
+                            const date = new Date(request.appliedDate);
+                            if (!isNaN(date.getTime())) {
+                              return (
+                                <div className="text-xs text-gray-500 flex items-center">
+                                  <FaCalendarAlt className="mr-1" />
+                                  Applied: {date.toLocaleDateString()}
+                                </div>
+                              );
+                            }
+                          } catch (e) {
+                            // Invalid date, don't show anything
+                          }
+                          return null;
+                        })()}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {new Date(request.startDate).toLocaleDateString()} - {new Date(request.endDate).toLocaleDateString()}
+                        {request.startDate ? (() => {
+                          try {
+                            const date = new Date(request.startDate);
+                            return isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString();
+                          } catch (e) {
+                            return 'N/A';
+                          }
+                        })() : 'N/A'}
                       </div>
                       <div className="text-sm text-gray-500 flex items-center">
-                        <FaClock className="mr-1" />
-                        {request.days} day(s)
+                        <FaCalendarAlt className="mr-1" />
+                        Start Date
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{request.coveringStaff}</div>
-                      <div className="text-sm text-gray-500">Emergency: {request.emergencyContact}</div>
+                      <div className="text-sm text-gray-900">
+                        {request.endDate ? (() => {
+                          try {
+                            const date = new Date(request.endDate);
+                            return isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString();
+                          } catch (e) {
+                            return 'N/A';
+                          }
+                        })() : 'N/A'}
+                      </div>
+                      <div className="text-sm text-gray-500 flex items-center">
+                        <FaClock className="mr-1" />
+                        {request.totalDays || request.days || 'N/A'} day(s)
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
@@ -452,7 +498,11 @@ const LeaveRequests = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
-                        <button className="text-indigo-600 hover:text-indigo-900">
+                        <button 
+                          onClick={() => openViewDetails(request)}
+                          className="text-teal-600 hover:text-teal-900"
+                          title="View Details"
+                        >
                           <FaEye className="h-4 w-4" />
                         </button>
                         {request.status === 'Pending' && (
@@ -490,6 +540,175 @@ const LeaveRequests = () => {
           )}
         </div>
       </div>
+
+      {/* Notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${
+          notification.type === 'success' 
+            ? 'bg-green-500 text-white' 
+            : 'bg-red-500 text-white'
+        }`}>
+          <div className="flex items-center">
+            <span className="mr-2">
+              {notification.type === 'success' ? '✅' : '❌'}
+            </span>
+            <span>{notification.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Leave Request Details Modal */}
+      {viewingRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-900">Leave Request Details</h3>
+              <button
+                onClick={closeViewDetails}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <FaTimes className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Employee Information */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <FaUser className="mr-2 text-blue-600" />
+                  Employee Information
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <p className="text-gray-900">{viewingRequest.staffName || viewingRequest.employeeName || 'Unknown Staff'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
+                    <p className="text-gray-900">{viewingRequest.requestId || viewingRequest.employeeId || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                    <p className="text-gray-900">{viewingRequest.department || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Position</label>
+                    <p className="text-gray-900">{viewingRequest.position || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Leave Request Information */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <FaFileAlt className="mr-2 text-green-600" />
+                  Leave Request Information
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type</label>
+                    <span className={getLeaveTypeColor(viewingRequest.leaveType)}>
+                      {viewingRequest.leaveType}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <span className={getStatusBadge(viewingRequest.status)}>
+                      <FaCheckCircle className="inline mr-1" />
+                      {viewingRequest.status}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <p className="text-gray-900">
+                      <FaCalendarAlt className="inline mr-2" />
+                      {viewingRequest.startDate ? (() => {
+                        try {
+                          const date = new Date(viewingRequest.startDate);
+                          return isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString();
+                        } catch (e) {
+                          return 'N/A';
+                        }
+                      })() : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                    <p className="text-gray-900">
+                      <FaCalendarAlt className="inline mr-2" />
+                      {viewingRequest.endDate ? (() => {
+                        try {
+                          const date = new Date(viewingRequest.endDate);
+                          return isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString();
+                        } catch (e) {
+                          return 'N/A';
+                        }
+                      })() : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Days</label>
+                    <p className="text-gray-900">
+                      <FaClock className="inline mr-2" />
+                      {viewingRequest.totalDays || viewingRequest.days || 'N/A'} day(s)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Applied Date</label>
+                    <p className="text-gray-900">
+                      <FaCalendarAlt className="inline mr-2" />
+                      {viewingRequest.appliedDate ? (() => {
+                        try {
+                          const date = new Date(viewingRequest.appliedDate);
+                          return isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString();
+                        } catch (e) {
+                          return 'N/A';
+                        }
+                      })() : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Information */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <FaUserClock className="mr-2 text-purple-600" />
+                  Additional Information
+                </h4>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Leave</label>
+                    <p className="text-gray-900 bg-white p-3 rounded border">
+                      {viewingRequest.reason || 'No reason provided'}
+                    </p>
+                  </div>
+                  {viewingRequest.comments && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Warden's Comments</label>
+                      <p className="text-gray-900 bg-yellow-50 p-3 rounded border border-yellow-200">
+                        {viewingRequest.comments}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end p-6 border-t border-gray-200">
+              <button
+                onClick={closeViewDetails}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </WardenLayout>
   );
 };

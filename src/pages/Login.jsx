@@ -265,81 +265,23 @@ export default function Login() {
     try {
       setIsLoading(true);
 
-      // Your actual Supabase user data for ALEENA ANNA ALEX
-      const supabaseUserData = {
-        id: 'd7edc314-8758-4198-80d8-673b6dbd26b3',
-        aud: 'authenticated',
-        role: 'authenticated',
-        email: 'aleenaannaalex2026@mca.ajce.in',
-        email_confirmed_at: '2025-08-01T09:30:16.398156Z',
-        phone: '',
-        confirmed_at: '2025-08-01T09:30:16.398156Z',
-        last_sign_in_at: new Date().toISOString(),
-        app_metadata: {
-          provider: 'google',
-          providers: ['google']
-        },
-        user_metadata: {
-          avatar_url: 'https://lh3.googleusercontent.com/a/ACg8ocLwDeAicKdSKvQE1D2b0qOclgCrvwj2khm_H6UPPp6wjahMEdlx=s96-c',
-          email: 'aleenaannaalex2026@mca.ajce.in',
-          email_verified: true,
-          full_name: 'ALEENA ANNA ALEX',
-          name: 'ALEENA ANNA ALEX',
-          phone_verified: false,
-          picture: 'https://lh3.googleusercontent.com/a/ACg8ocLwDeAicKdSKvQE1D2b0qOclgCrvwj2khm_H6UPPp6wjahMEdlx=s96-c',
-          provider_id: '114304179321089156227',
-          sub: '114304179321089156227',
-          // Additional details you want to collect
-          dateOfBirth: '1995-06-15T00:00:00.000+00:00',
-          gender: 'female',
-          nationality: 'Indian',
-          maritalStatus: 'single'
-        },
-        created_at: '2025-08-01T09:30:16.371411Z',
-        updated_at: new Date().toISOString(),
-        is_anonymous: false
-      };
-
-      // Call your backend OAuth sync endpoint
-      const response = await fetch('http://localhost:5000/api/auth/sync-oauth-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          supabaseUser: supabaseUserData
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.msg || 'OAuth sync failed');
+      // Import the signInWithGoogle function from Supabase
+      const { signInWithGoogle } = await import('../lib/supabase');
+      
+      // Use the proper Supabase Google OAuth
+      const result = await signInWithGoogle();
+      
+      if (result.error) {
+        throw new Error(result.error);
       }
 
-      // Use the login function to set the user
-      login(data.user, data.token);
-
-      // Show success notification
-      showSuccess(`Welcome back, ${data.user.name}!`, 'Google Sign-In Successful');
-
-      // Navigate to appropriate dashboard based on role
-      let dashboardPath;
-      if (data.user.role === 'admin') {
-        dashboardPath = '/admin';
-      } else if (data.user.role === 'warden') {
-        dashboardPath = '/warden/dashboard';
-      } else if (data.user.role === 'staff') {
-        dashboardPath = '/staff/dashboard';
-      } else {
-        dashboardPath = '/dashboard';
-      }
-      navigate(dashboardPath, { replace: true });
+      // The OAuth flow will redirect to the dashboard
+      // The auth state change will be handled by the AuthContext
+      showSuccess('Redirecting to Google...', 'Google Sign-In Initiated');
 
     } catch (error) {
       console.error('Google sign-in error:', error);
       showError(error.message || 'Failed to sign in with Google', 'Sign-In Error');
-    } finally {
       setIsLoading(false);
     }
   };

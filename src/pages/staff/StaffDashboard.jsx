@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import StaffLayout from '../../components/layout/StaffLayout';
@@ -20,7 +21,7 @@ import {
 } from 'react-icons/fa';
 
 // StatCard Component
-const StatCard = ({ icon: Icon, title, value, color, trend, onClick }) => (
+const StatCard = ({ icon: Icon, title, value, color, trend, onClick, loading = false }) => (
   <div 
     onClick={onClick}
     className={`${color} rounded-xl p-6 text-white cursor-pointer transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl`}
@@ -28,8 +29,10 @@ const StatCard = ({ icon: Icon, title, value, color, trend, onClick }) => (
     <div className="flex items-center justify-between">
       <div>
         <p className="text-white/80 text-sm font-medium">{title}</p>
-        <p className="text-3xl font-bold mt-2">{value}</p>
-        {trend && (
+        <p className="text-3xl font-bold mt-2">
+          {loading ? '...' : value}
+        </p>
+        {trend && !loading && (
           <p className={`text-sm mt-2 ${trend.positive ? 'text-green-200' : 'text-red-200'}`}>
             {trend.value}
           </p>
@@ -69,16 +72,48 @@ const AlertCard = ({ alert }) => (
 const StaffDashboard = () => {
   const { user } = useAuth();
   const { showSuccess, showError } = useNotification();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
-    assignedInmates: 24,
-    pendingReports: 3,
-    todaySchedule: 5,
-    behaviorRatings: 18,
-    incidentsReported: 2,
-    counselingSessions: 4,
-    leaveRequests: 1,
-    attendanceMarked: 22
+    assignedInmates: 0,
+    pendingReports: 0,
+    todaySchedule: 0,
+    behaviorRatings: 0,
+    incidentsReported: 0,
+    counselingSessions: 0,
+    leaveRequests: 0,
+    attendanceMarked: 0
   });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const token = sessionStorage.getItem('token');
+      
+      // Fetch inmates data
+      const inmatesRes = await fetch('http://localhost:5000/api/staff/inmates', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (inmatesRes.ok) {
+        const inmatesData = await inmatesRes.json();
+        if (inmatesData.success) {
+          setStats(prev => ({
+            ...prev,
+            assignedInmates: inmatesData.inmates.length
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [recentActivity, setRecentActivity] = useState([
     {
@@ -150,7 +185,8 @@ const StaffDashboard = () => {
             value={stats.assignedInmates}
             color="bg-gradient-to-r from-blue-500 to-blue-600"
             trend={{ positive: true, value: "Block A & B" }}
-            onClick={() => window.location.href = '/staff/inmates'}
+            onClick={() => navigate('/staff/inmates')}
+            loading={loading}
           />
           <StatCard
             icon={FaStar}
@@ -158,7 +194,8 @@ const StaffDashboard = () => {
             value={stats.behaviorRatings}
             color="bg-gradient-to-r from-green-500 to-green-600"
             trend={{ positive: true, value: "6 pending" }}
-            onClick={() => window.location.href = '/staff/behavior-ratings'}
+            onClick={() => navigate('/staff/behavior-ratings')}
+            loading={loading}
           />
           <StatCard
             icon={FaExclamationTriangle}
@@ -166,7 +203,7 @@ const StaffDashboard = () => {
             value={stats.incidentsReported}
             color="bg-gradient-to-r from-red-500 to-red-600"
             trend={{ positive: false, value: "This week" }}
-            onClick={() => window.location.href = '/staff/incidents'}
+            onClick={() => navigate('/staff/report-incidents')}
           />
           <StatCard
             icon={FaComments}
@@ -174,7 +211,7 @@ const StaffDashboard = () => {
             value={stats.counselingSessions}
             color="bg-gradient-to-r from-purple-500 to-purple-600"
             trend={{ positive: true, value: "2 scheduled today" }}
-            onClick={() => window.location.href = '/staff/counseling'}
+            onClick={() => navigate('/staff/counseling')}
           />
         </div>
 
@@ -186,7 +223,7 @@ const StaffDashboard = () => {
             value={stats.pendingReports}
             color="bg-gradient-to-r from-orange-500 to-orange-600"
             trend={{ positive: false, value: "1 overdue" }}
-            onClick={() => window.location.href = '/staff/reports'}
+            onClick={() => navigate('/staff/reports')}
           />
           <StatCard
             icon={FaCamera}
@@ -194,7 +231,7 @@ const StaffDashboard = () => {
             value={stats.attendanceMarked}
             color="bg-gradient-to-r from-teal-500 to-teal-600"
             trend={{ positive: true, value: "Today" }}
-            onClick={() => window.location.href = '/staff/attendance'}
+            onClick={() => navigate('/staff/attendance')}
           />
           <StatCard
             icon={FaCalendarAlt}
@@ -202,7 +239,7 @@ const StaffDashboard = () => {
             value={stats.todaySchedule}
             color="bg-gradient-to-r from-indigo-500 to-indigo-600"
             trend={{ positive: true, value: "activities" }}
-            onClick={() => window.location.href = '/staff/schedule'}
+            onClick={() => navigate('/staff/schedule')}
           />
           <StatCard
             icon={FaUserClock}
@@ -210,7 +247,7 @@ const StaffDashboard = () => {
             value={stats.leaveRequests}
             color="bg-gradient-to-r from-pink-500 to-pink-600"
             trend={{ positive: true, value: "1 approved" }}
-            onClick={() => window.location.href = '/staff/leave-requests'}
+            onClick={() => navigate('/staff/leave-requests')}
           />
         </div>
 
@@ -310,7 +347,7 @@ const StaffDashboard = () => {
               <p className="text-xs text-blue-700 mt-1">Submit daily report</p>
             </button>
             <button
-              onClick={() => window.location.href = '/staff/behavior-ratings'}
+              onClick={() => navigate('/staff/behavior-ratings')}
               className="group p-6 bg-gradient-to-br from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 rounded-xl text-center transition-all duration-200 border border-green-200 hover:border-green-300"
             >
               <FaStar className="text-3xl text-green-600 mx-auto mb-3 group-hover:scale-110 transition-transform" />
@@ -318,7 +355,7 @@ const StaffDashboard = () => {
               <p className="text-xs text-green-700 mt-1">Submit behavior ratings</p>
             </button>
             <button
-              onClick={() => window.location.href = '/staff/attendance'}
+              onClick={() => navigate('/staff/attendance')}
               className="group p-6 bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 rounded-xl text-center transition-all duration-200 border border-purple-200 hover:border-purple-300"
             >
               <FaCamera className="text-3xl text-purple-600 mx-auto mb-3 group-hover:scale-110 transition-transform" />

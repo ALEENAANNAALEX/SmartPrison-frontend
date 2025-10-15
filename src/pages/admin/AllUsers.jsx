@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'; // React + hooks
 import AdminLayout from '../../components/AdminLayout'; // Admin layout wrapper
-import { FaUsers, FaTrash, FaSearch, FaUserShield, FaUserTie, FaUserCog, FaExclamationTriangle } from 'react-icons/fa'; // Icons for users UI
+import { FaUsers, FaTrash, FaSearch, FaUserShield, FaUserTie, FaUserCog, FaExclamationTriangle, FaChevronLeft, FaChevronRight } from 'react-icons/fa'; // Icons for users UI
 import { useFormValidation } from '../../hooks/useFormValidation'; // Form validation hook
 import ValidatedInput, { ValidatedSelect, ValidatedTextarea, ValidatedCheckbox } from '../../components/ValidatedInput'; // Validated input components
 import { 
@@ -28,6 +28,8 @@ const AllUsers = () => {
   const [filterRole, setFilterRole] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   // Initial form data
   const initialFormData = {
@@ -73,6 +75,11 @@ const AllUsers = () => {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  // Reset to first page whenever filters/search change
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterRole, filterStatus]);
 
   // Function to create sample users for testing
   const createSampleUsers = async () => {
@@ -285,6 +292,13 @@ const AllUsers = () => {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredUsers.length);
+  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+
   const getRoleIcon = (role) => {
     switch (role) {
       case 'admin':
@@ -425,7 +439,9 @@ const AllUsers = () => {
           </select>
           
           <div className="text-sm text-gray-600 flex items-center">
-            Showing {filteredUsers.length} of {users.length} users
+            {filteredUsers.length > 0
+              ? `Showing ${startIndex + 1}-${endIndex} of ${filteredUsers.length} users`
+              : `Showing 0 of ${users.length} users`}
           </div>
         </div>
       </div>
@@ -470,7 +486,7 @@ const AllUsers = () => {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user) => (
+                paginatedUsers.map((user) => (
                   <tr key={user._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -507,12 +523,14 @@ const AllUsers = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => handleDelete(user._id)}
-                        className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition-colors"
-                      >
-                        <FaTrash />
-                      </button>
+                      {user.role !== 'admin' && (
+                        <button
+                          onClick={() => handleDelete(user._id)}
+                          className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition-colors"
+                        >
+                          <FaTrash />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -522,6 +540,51 @@ const AllUsers = () => {
           </table>
         </div>
       </div>
+
+      {/* Pagination Controls */}
+      {filteredUsers.length > 0 && (
+        <div className="border-t border-gray-200 px-4 py-3">
+          <div className="flex items-center justify-end gap-3">
+            {/* Left Arrow */}
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className={`h-10 w-10 flex items-center justify-center rounded-full border shadow-sm transition-colors ${
+                currentPage === 1
+                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                  : 'bg-white text-indigo-700 border-gray-300 hover:bg-gray-50'
+              }`}
+              aria-label="Previous page"
+              title="Previous"
+            >
+              <FaChevronLeft />
+            </button>
+
+            {/* Single Page Bubble */}
+            <div
+              className="h-10 min-w-10 px-3 flex items-center justify-center rounded-full bg-indigo-700 text-white text-lg font-bold shadow-sm select-none"
+              title={`Page ${currentPage} of ${totalPages}`}
+            >
+              {currentPage}
+            </div>
+
+            {/* Right Arrow */}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className={`h-10 w-10 flex items-center justify-center rounded-full border shadow-sm transition-colors ${
+                currentPage === totalPages
+                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                  : 'bg-white text-indigo-700 border-gray-300 hover:bg-gray-50'
+              }`}
+              aria-label="Next page"
+              title="Next"
+            >
+              <FaChevronRight />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add Modal */}
       {showAddModal && (

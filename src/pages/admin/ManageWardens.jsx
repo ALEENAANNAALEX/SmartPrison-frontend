@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'; // React core + hooks
 import AdminLayout from '../../components/AdminLayout'; // Admin layout wrapper
-import { FaUserTie, FaPlus, FaEdit, FaTrash, FaBuilding, FaEye, FaArrowLeft } from 'react-icons/fa'; // Icons for UI
+import { FaUserTie, FaPlus, FaEdit, FaTrash, FaBuilding, FaEye, FaArrowLeft, FaEnvelope, FaPhone, FaUserCheck, FaClock } from 'react-icons/fa'; // Icons for UI
 import ValidatedInput, { ValidatedSelect } from '../../components/ValidatedInput'; // Custom validated inputs
 import { useFormValidation } from '../../hooks/useFormValidation'; // Reusable form validation hook
 import {
@@ -33,6 +33,7 @@ const ManageWardens = () => {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingWarden, setEditingWarden] = useState(null);
+  const [viewingWarden, setViewingWarden] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
 
   // Form validation setup
@@ -212,6 +213,14 @@ const ManageWardens = () => {
       specialization: warden.wardenDetails?.specialization || ''
     });
     setShowAddModal(true);
+  };
+
+  const openViewDetails = (warden) => {
+    setViewingWarden(warden);
+  };
+
+  const closeViewDetails = () => {
+    setViewingWarden(null);
   };
 
   const handleDelete = async (wardenId) => {
@@ -450,7 +459,7 @@ const ManageWardens = () => {
                 placeholder="Enter years of experience (optional)"
                 helperText="Optional: Years of relevant experience"
                 min="0"
-                max="50"
+                max="39"
               />
             </div>
             <ValidatedInput
@@ -494,6 +503,144 @@ const ManageWardens = () => {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* View Warden Details Modal */}
+      {viewingWarden && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-900">Warden Details</h3>
+              <button
+                onClick={closeViewDetails}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <FaArrowLeft className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Personal Information */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <FaUserTie className="mr-2 text-purple-600" />
+                  Personal Information
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <p className="text-gray-900">{viewingWarden.name}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
+                    <p className="text-gray-900">{viewingWarden.wardenDetails?.employeeId || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                    <p className="text-gray-900 flex items-center">
+                      <FaEnvelope className="mr-2 text-gray-400" />
+                      {viewingWarden.email}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                    <p className="text-gray-900 flex items-center">
+                      <FaPhone className="mr-2 text-gray-400" />
+                      {viewingWarden.phoneNumber || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Professional Information */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <FaBuilding className="mr-2 text-blue-600" />
+                  Professional Information
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Experience</label>
+                    <p className="text-gray-900">{viewingWarden.wardenDetails?.experience ? `${viewingWarden.wardenDetails.experience} years` : 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Shift</label>
+                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                      viewingWarden.wardenDetails?.shift === 'day' ? 'bg-yellow-100 text-yellow-800' :
+                      viewingWarden.wardenDetails?.shift === 'night' ? 'bg-blue-100 text-blue-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {(viewingWarden.wardenDetails?.shift || 'day').charAt(0).toUpperCase() + (viewingWarden.wardenDetails?.shift || 'day').slice(1)} Shift
+                    </span>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Specialization</label>
+                    <p className="text-gray-900">{viewingWarden.wardenDetails?.specialization || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Assignment Information */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <FaBuilding className="mr-2 text-green-600" />
+                  Assignment Information
+                </h4>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Blocks</label>
+                  <div className="flex flex-wrap gap-2">
+                    {viewingWarden.wardenDetails?.assignedBlocks?.length > 0 ? (
+                      viewingWarden.wardenDetails.assignedBlocks.map((block) => (
+                        <span key={block._id} className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                          {block.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-500 text-sm">No blocks assigned</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Information */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <FaUserCheck className="mr-2 text-indigo-600" />
+                  Status & Activity
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Account Status</label>
+                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+                      viewingWarden.wardenDetails?.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {viewingWarden.wardenDetails?.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Login</label>
+                    <p className="text-gray-900 flex items-center">
+                      <FaClock className="mr-2 text-gray-400" />
+                      {viewingWarden.lastLogin || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end p-6 border-t border-gray-200">
+              <button
+                onClick={closeViewDetails}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -560,6 +707,13 @@ const ManageWardens = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex gap-2">
+                      <button
+                        onClick={() => openViewDetails(warden)}
+                        className="bg-teal-600 text-white px-3 py-1 rounded text-xs hover:bg-teal-700 transition-colors"
+                        title="View Details"
+                      >
+                        <FaEye />
+                      </button>
                       <button
                         onClick={() => handleEdit(warden)}
                         className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors"

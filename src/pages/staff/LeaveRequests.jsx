@@ -28,10 +28,7 @@ const LeaveRequests = () => {
     leaveType: 'Annual Leave',
     startDate: '',
     endDate: '',
-    reason: '',
-    emergencyContact: '',
-    coverageArrangement: '',
-    additionalNotes: ''
+    reason: ''
   });
 
   // Mock leave requests data
@@ -108,6 +105,30 @@ const LeaveRequests = () => {
     return diffDays;
   };
 
+  // Format date as YYYY-MM-DD for input[type=date]
+  const formatDateInput = (d) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Compute tomorrow in YYYY-MM-DD
+  const getTomorrowString = () => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    return formatDateInput(t);
+  };
+
+  // Compute max selectable date = today + 6 months
+  const getMaxDateString = () => {
+    const d = new Date();
+    const month = d.getMonth();
+    // Add 6 months, handle year overflow automatically
+    d.setMonth(month + 6);
+    return formatDateInput(d);
+  };
+
   const handleSubmitRequest = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -115,6 +136,16 @@ const LeaveRequests = () => {
     try {
       const totalDays = calculateDays(requestForm.startDate, requestForm.endDate);
       const token = sessionStorage.getItem('token');
+
+      if (!token) {
+        setNotification({
+          type: 'error',
+          message: '❌ No authentication token found. Please log in again.'
+        });
+        setTimeout(() => setNotification(null), 5000);
+        setLoading(false);
+        return;
+      }
 
       const response = await fetch('http://localhost:5000/api/staff/leave-requests', {
         method: 'POST',
@@ -127,10 +158,7 @@ const LeaveRequests = () => {
           startDate: requestForm.startDate,
           endDate: requestForm.endDate,
           totalDays: totalDays,
-          reason: requestForm.reason,
-          emergencyContact: requestForm.emergencyContact,
-          coverageArrangement: requestForm.coverageArrangement,
-          additionalNotes: requestForm.additionalNotes
+          reason: requestForm.reason
         })
       });
 
@@ -150,10 +178,7 @@ const LeaveRequests = () => {
             leaveType: 'Annual Leave',
             startDate: '',
             endDate: '',
-            reason: '',
-            emergencyContact: '',
-            coverageArrangement: '',
-            additionalNotes: ''
+            reason: ''
           });
           setShowRequestModal(false);
         } else {
@@ -163,10 +188,20 @@ const LeaveRequests = () => {
           });
         }
       } else {
-        setNotification({
-          type: 'error',
-          message: '❌ Failed to submit leave request. Please try again.'
-        });
+        const errorData = await response.json().catch(() => ({ msg: 'Unknown error' }));
+        console.error('Leave request error:', errorData);
+        
+        if (response.status === 401) {
+          setNotification({
+            type: 'error',
+            message: '❌ Authentication failed. Please log in again.'
+          });
+        } else {
+          setNotification({
+            type: 'error',
+            message: `❌ ${errorData.msg || 'Failed to submit leave request. Please try again.'}`
+          });
+        }
       }
 
       setTimeout(() => setNotification(null), 5000);
@@ -175,7 +210,7 @@ const LeaveRequests = () => {
       console.error('Submit request error:', error);
       setNotification({
         type: 'error',
-        message: '❌ Failed to submit leave request. Please try again.'
+        message: '❌ Network error. Please check your connection and try again.'
       });
       setTimeout(() => setNotification(null), 5000);
     } finally {
@@ -292,7 +327,17 @@ const LeaveRequests = () => {
           </div>
           
           <button 
-            onClick={() => setShowRequestModal(true)}
+            onClick={() => {
+              // Default dates when opening modal: tomorrow for both start and end
+              const tomorrow = getTomorrowString();
+              setRequestForm({
+                leaveType: 'Annual Leave',
+                startDate: tomorrow,
+                endDate: tomorrow,
+                reason: ''
+              });
+              setShowRequestModal(true);
+            }}
             className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
           >
             <FaPlus className="mr-2" />
@@ -391,7 +436,7 @@ const LeaveRequests = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredRequests.map((request) => (
-                  <tr key={request.id} className="hover:bg-gray-50">
+                  <tr key={request.requestId || request.id || request._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">ID: {request.requestId}</div>
@@ -438,14 +483,14 @@ const LeaveRequests = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <button 
-                          onClick={() => alert(`Viewing details for request ${request.requestId}`)}
+                          onClick={() => console.log(`Viewing details for request ${request.requestId}`)}
                           className="text-indigo-600 hover:text-indigo-900"
                         >
                           <FaEye className="h-4 w-4" />
                         </button>
                         {request.status === 'Pending' && (
                           <button 
-                            onClick={() => alert(`Editing request ${request.requestId}`)}
+                            onClick={() => console.log(`Editing request ${request.requestId}`)}
                             className="text-green-600 hover:text-green-900"
                           >
                             <FaEdit className="h-4 w-4" />
@@ -519,7 +564,21 @@ const LeaveRequests = () => {
                   <input
                     type="date"
                     value={requestForm.startDate}
-                    onChange={(e) => setRequestForm({...requestForm, startDate: e.target.value})}
+                    min={getTomorrowString()}
+                    max={getMaxDateString()}
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      setRequestForm(prev => {
+                        const endOkay = prev.endDate && new Date(prev.endDate) >= new Date(newStart);
+                        let nextEnd = endOkay ? prev.endDate : newStart;
+                        // Clamp end date to max window
+                        const maxStr = getMaxDateString();
+                        if (nextEnd && new Date(nextEnd) > new Date(maxStr)) {
+                          nextEnd = maxStr;
+                        }
+                        return { ...prev, startDate: newStart, endDate: nextEnd };
+                      });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     required
                   />
@@ -530,6 +589,8 @@ const LeaveRequests = () => {
                   <input
                     type="date"
                     value={requestForm.endDate}
+                    min={requestForm.startDate || getTomorrowString()}
+                    max={getMaxDateString()}
                     onChange={(e) => setRequestForm({...requestForm, endDate: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     required
@@ -547,54 +608,7 @@ const LeaveRequests = () => {
                   placeholder="Please provide a detailed reason for your leave request..."
                   required
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Emergency Contact *</label>
-                <input
-                  type="text"
-                  value={requestForm.emergencyContact}
-                  onChange={(e) => setRequestForm({...requestForm, emergencyContact: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Name and phone number of emergency contact"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Coverage Arrangement *</label>
-                <textarea
-                  value={requestForm.coverageArrangement}
-                  onChange={(e) => setRequestForm({...requestForm, coverageArrangement: e.target.value})}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Describe how your duties will be covered during your absence..."
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
-                <textarea
-                  value={requestForm.additionalNotes}
-                  onChange={(e) => setRequestForm({...requestForm, additionalNotes: e.target.value})}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Any additional information..."
-                />
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">Important Notes</h4>
-                <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Leave requests should be submitted at least 2 weeks in advance</li>
-                  <li>• Emergency leave requests will be processed immediately</li>
-                  <li>• All leave requests require supervisor approval</li>
-                  <li>• You will be notified via email once your request is processed</li>
-                </ul>
-              </div>
-
-              <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
+              </div>              <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={() => setShowRequestModal(false)}

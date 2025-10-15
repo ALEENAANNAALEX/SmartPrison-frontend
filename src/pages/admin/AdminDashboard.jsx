@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'; // React core + hooks for state/effect
+import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/AdminLayout'; // Common admin layout shell
 import {
   FaUsers,
@@ -21,6 +22,7 @@ import {
 // - Render: summary cards, charts, alerts, quick actions
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalPrisoners: 0,
     totalWardens: 0,
@@ -71,9 +73,11 @@ const AdminDashboard = () => {
         setStats(prev => ({
           ...prev,
           totalPrisoners: statsJson.activeInmates ?? prev.totalPrisoners,
-          totalWardens: statsJson.totalStaff ?? prev.totalWardens,
+          totalWardens: statsJson.totalWardens ?? prev.totalWardens,
+          totalBlocks: statsJson.totalBlocks ?? prev.totalBlocks,
           totalUsers: statsJson.totalUsers ?? prev.totalUsers,
-          scheduledVisits: statsJson.totalVisits ?? prev.scheduledVisits
+          scheduledVisits: statsJson.totalVisits ?? prev.scheduledVisits,
+          totalStaff: statsJson.totalStaff ?? prev.totalStaff
         }));
       }
 
@@ -155,27 +159,27 @@ const AdminDashboard = () => {
       trend: 'up'
     },
     {
-      title: 'Capacity Usage',
-      value: `${Math.round((stats.totalPrisoners / Math.max(stats.capacity || 1, 1)) * 100)}%`,
+      title: 'Staff Members',
+      value: stats.totalStaff || 0,
       icon: FaChartBar,
       color: 'pink',
-      change: '+2.8%',
-      trend: 'up'
+      change: '+0%',
+      trend: 'neutral'
     }
   ];
 
   const getColorClasses = (color) => {
     const colors = {
-      blue: 'bg-blue-100 text-blue-600',
-      purple: 'bg-purple-100 text-purple-600',
-      green: 'bg-green-100 text-green-600',
-      orange: 'bg-orange-100 text-orange-600',
-      red: 'bg-red-100 text-red-600',
-      yellow: 'bg-yellow-100 text-yellow-600',
-      indigo: 'bg-indigo-100 text-indigo-600',
-      pink: 'bg-pink-100 text-pink-600'
+      blue: 'from-sky-500 to-sky-600',
+      purple: 'from-fuchsia-500 to-fuchsia-600',
+      green: 'from-emerald-500 to-emerald-600',
+      orange: 'from-amber-500 to-amber-600',
+      red: 'from-rose-500 to-rose-600',
+      yellow: 'from-lime-500 to-lime-600',
+      indigo: 'from-violet-500 to-violet-600',
+      pink: 'from-cyan-500 to-cyan-600'
     };
-    return colors[color] || 'bg-gray-100 text-gray-600';
+    return colors[color] || 'from-gray-500 to-gray-600';
   };
 
   if (loading) {
@@ -190,29 +194,32 @@ const AdminDashboard = () => {
 
   return (
     <AdminLayout title="Dashboard" subtitle="Overview of prison management system">
-      {/* Stats Grid */}
+      {/* Stats Grid (styled like Staff) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {statCards.map((card, index) => {
           const Icon = card.icon;
           return (
-            <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div
+              key={index}
+              className={`bg-gradient-to-r ${getColorClasses(card.color)} rounded-xl p-6 text-white transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl`}
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">{card.title}</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{card.value}</p>
+                  <p className="text-white/80 text-sm font-medium">{card.title}</p>
+                  <p className="text-3xl font-bold mt-2">{card.value}</p>
                   <div className="flex items-center mt-2">
-                    {card.trend === 'up' && <FaArrowUp className="text-green-500 text-sm mr-1" />}
-                    {card.trend === 'down' && <FaArrowDown className="text-red-500 text-sm mr-1" />}
+                    {card.trend === 'up' && <FaArrowUp className="text-green-200 text-sm mr-1" />}
+                    {card.trend === 'down' && <FaArrowDown className="text-red-200 text-sm mr-1" />}
                     <span className={`text-sm font-medium ${
-                      card.trend === 'up' ? 'text-green-600' : 
-                      card.trend === 'down' ? 'text-red-600' : 'text-gray-600'
+                      card.trend === 'up' ? 'text-green-200' : 
+                      card.trend === 'down' ? 'text-red-200' : 'text-white/80'
                     }`}>
                       {card.change}
                     </span>
-                    <span className="text-sm text-gray-500 ml-1">vs last month</span>
+                    <span className="text-sm text-white/70 ml-1">vs last month</span>
                   </div>
                 </div>
-                <div className={`p-3 rounded-lg ${getColorClasses(card.color)}`}>
+                <div className="bg-white/20 p-4 rounded-xl">
                   <Icon className="text-2xl" />
                 </div>
               </div>
@@ -313,29 +320,29 @@ const AdminDashboard = () => {
           <h3 className="text-lg font-semibold text-gray-900 mb-6">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <button
-              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center"
-              onClick={() => window.location.href = '/admin/prisoners'}
+              className="group p-6 bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-xl text-center transition-all duration-200 border border-blue-200 hover:border-blue-300"
+              onClick={() => navigate('/admin/prisoners')}
             >
               <FaUserShield className="text-2xl text-blue-600 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-900">Add Prisoner</p>
             </button>
             <button
-              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center"
-              onClick={() => window.location.href = '/admin/wardens'}
+              className="group p-6 bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 rounded-xl text-center transition-all duration-200 border border-purple-200 hover:border-purple-300"
+              onClick={() => navigate('/admin/wardens')}
             >
               <FaUserTie className="text-2xl text-purple-600 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-900">Manage Wardens</p>
             </button>
             <button
-              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center"
-              onClick={() => window.location.href = '/admin/blocks'}
+              className="group p-6 bg-gradient-to-br from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 rounded-xl text-center transition-all duration-200 border border-green-200 hover:border-green-300"
+              onClick={() => navigate('/admin/blocks')}
             >
               <FaBuilding className="text-2xl text-green-600 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-900">Create Block</p>
             </button>
             <button
-              className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-center"
-              onClick={() => window.location.href = '/admin/visit-requests'}
+              className="group p-6 bg-gradient-to-br from-indigo-50 to-indigo-100 hover:from-indigo-100 hover:to-indigo-200 rounded-xl text-center transition-all duration-200 border border-indigo-200 hover:border-indigo-300"
+              onClick={() => navigate('/admin/visit-requests')}
             >
               <FaClipboardList className="text-2xl text-indigo-600 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-900">Manage Visits</p>

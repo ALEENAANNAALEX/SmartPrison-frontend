@@ -70,41 +70,6 @@ const PrisonerManagement = () => {
     photograph: null
   });
 
-  // Mock data for testing
-  const mockPrisoners = [
-    {
-      id: 1,
-      prisonerNumber: 'P000001',
-      name: 'John Doe',
-      firstName: 'John',
-      lastName: 'Doe',
-      dateOfBirth: '1985-03-15',
-      gender: 'male',
-      photograph: null,
-      currentLocation: { block: 'A', cell: '101' },
-      status: 'active',
-      admissionDate: '2023-01-15',
-      sentenceDetails: { sentenceType: 'fixed_term', sentenceLength: 60 },
-      behaviorRecord: { currentLevel: 'good' },
-      charges: [{ charge: 'Theft', severity: 'minor' }]
-    },
-    {
-      id: 2,
-      prisonerNumber: 'P000002',
-      name: 'Jane Smith',
-      firstName: 'Jane',
-      lastName: 'Smith',
-      dateOfBirth: '1990-07-22',
-      gender: 'female',
-      photograph: null,
-      currentLocation: { block: 'B', cell: '205' },
-      status: 'active',
-      admissionDate: '2023-06-10',
-      sentenceDetails: { sentenceType: 'fixed_term', sentenceLength: 36 },
-      behaviorRecord: { currentLevel: 'excellent' },
-      charges: [{ charge: 'Fraud', severity: 'major' }]
-    }
-  ];
 
   useEffect(() => {
     fetchPrisoners();
@@ -128,15 +93,15 @@ const PrisonerManagement = () => {
           setPrisoners(data.prisoners);
         } else {
           console.error('Failed to fetch prisoners:', data.msg);
-          setPrisoners(mockPrisoners);
+          setPrisoners([]);
         }
       } else {
         console.error('Failed to fetch prisoners');
-        setPrisoners(mockPrisoners);
+        setPrisoners([]);
       }
     } catch (error) {
       console.error('Error fetching prisoners:', error);
-      setPrisoners(mockPrisoners);
+      setPrisoners([]);
     } finally {
       setLoading(false);
     }

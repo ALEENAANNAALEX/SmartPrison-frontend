@@ -116,10 +116,52 @@ export const validateVisitDate = (dateStr) => {
 
 export const validateVisitTime = (time) => {
   if (!time) return 'Visit time is required';
-  const [hours, minutes] = time.split(':').map(Number);
   
-  // Check if time is within visiting hours (e.g., 9 AM to 5 PM)
-  if (hours < 9 || hours > 17) return 'Visit time must be between 9:00 AM and 5:00 PM';
+  // Valid time slots (hourly from 9 AM to 5 PM)
+  const validSlots = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+  
+  if (validSlots.includes(time)) {
+    return '';
+  }
+  
+  return 'Invalid visit time slot';
+};
+
+// List of public holidays (format: YYYY-MM-DD)
+const PUBLIC_HOLIDAYS = [
+  '2025-01-01', // New Year's Day
+  '2025-01-26', // Republic Day
+  '2025-03-08', // Holi
+  '2025-03-29', // Good Friday
+  '2025-04-14', // Ambedkar Jayanti
+  '2025-04-17', // Ram Navami
+  '2025-05-01', // Labour Day
+  '2025-08-15', // Independence Day
+  '2025-08-26', // Janmashtami
+  '2025-09-07', // Ganesh Chaturthi
+  '2025-10-02', // Gandhi Jayanti
+  '2025-10-12', // Dussehra
+  '2025-10-31', // Diwali
+  '2025-11-01', // Diwali (Day 2)
+  '2025-12-25', // Christmas Day
+];
+
+export const validateVisitDateForVisitorArea = (date) => {
+  if (!date) return 'Visit date is required';
+  
+  const visitDate = new Date(date);
+  const dayOfWeek = visitDate.getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+  
+  // Only allow Tuesday (2), Thursday (4), Saturday (6)
+  if (![2, 4, 6].includes(dayOfWeek)) {
+    return 'Visits to Visitor Area are only allowed on Tuesday, Thursday, and Saturday';
+  }
+  
+  // Check if it's a public holiday
+  const dateStr = date; // date is already in YYYY-MM-DD format
+  if (PUBLIC_HOLIDAYS.includes(dateStr)) {
+    return 'Visits are not allowed on public holidays';
+  }
   
   return '';
 };
@@ -178,6 +220,43 @@ export const getMaxDateForVisit = () => {
   d.setDate(d.getDate() + 1);
   d.setMonth(d.getMonth() + 1);
   return d.toISOString().split('T')[0];
+};
+
+// Function to check if a date is valid for visits (Tuesday, Thursday, Saturday, not public holiday)
+export const isDateValidForVisit = (dateStr) => {
+  if (!dateStr) return false;
+  
+  const visitDate = new Date(dateStr);
+  const dayOfWeek = visitDate.getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+  
+  // Only allow Tuesday (2), Thursday (4), Saturday (6)
+  if (![2, 4, 6].includes(dayOfWeek)) {
+    return false;
+  }
+  
+  // Check if it's a public holiday
+  if (PUBLIC_HOLIDAYS.includes(dateStr)) {
+    return false;
+  }
+  
+  return true;
+};
+
+// Function to get the next valid visit date from a given date
+export const getNextValidVisitDate = (fromDate = new Date()) => {
+  const currentDate = new Date(fromDate);
+  currentDate.setDate(currentDate.getDate() + 1); // Start from tomorrow
+  
+  // Look for the next valid date within 2 months
+  for (let i = 0; i < 60; i++) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    if (isDateValidForVisit(dateStr)) {
+      return dateStr;
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return null; // No valid date found
 };
 
 // Utility function to validate all form fields
@@ -348,7 +427,7 @@ export const validateExperience = (experience) => {
   const exp = parseInt(experience);
   if (isNaN(exp)) return 'Experience must be a valid number';
   if (exp < 0) return 'Experience cannot be negative';
-  if (exp > 50) return 'Experience cannot exceed 50 years';
+  if (exp > 39) return 'Experience cannot exceed 39 years';
   return '';
 };
 

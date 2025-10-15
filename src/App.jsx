@@ -30,21 +30,23 @@ import RouteTest from './components/RouteTest';
 
 // Staff Pages
 import StaffDashboard from './pages/staff/StaffDashboard';
-import InmatesView from './pages/staff/InmatesView';
+import StaffInmatesView from './pages/staff/StaffInmatesView';
 import ReportIncidents from './pages/staff/ReportIncidents';
-import MySchedule from './pages/staff/MySchedule';
+import StaffScheduleView from './pages/staff/StaffScheduleView';
 import MyReports from './pages/staff/MyReports';
 import BehaviorRatings from './pages/staff/BehaviorRatings';
 import CounselingSessions from './pages/staff/CounselingSessions';
 import LeaveRequests from './pages/staff/LeaveRequests';
 import FaceRecognitionAttendance from './pages/staff/FaceRecognitionAttendance';
 import TestStaff from './pages/staff/TestStaff';
+import StaffSettings from './pages/staff/StaffSettings';
+import VerifyVisitor from './pages/staff/VerifyVisitor';
 
 // Warden Pages
 import WardenDashboard from './pages/warden/WardenDashboard';
 import InmatesManagement from './pages/warden/InmatesManagement';
-import ManageStaff from './pages/warden/ManageStaff';
 import ScheduleManagement from './pages/warden/ScheduleManagement';
+import StaffManagement from './pages/warden/StaffManagement';
 import ReportsManagement from './pages/warden/ReportsManagement';
 import BehaviorAnalytics from './pages/warden/BehaviorAnalytics';
 import WardenLeaveRequests from './pages/warden/LeaveRequests';
@@ -137,17 +139,17 @@ const AppWithGuard = () => {
       } />
       <Route path="/staff/inmates" element={
         <ProtectedRoute>
-          <InmatesView />
+          <StaffInmatesView />
         </ProtectedRoute>
       } />
-      <Route path="/staff/incidents" element={
+      <Route path="/staff/report-incidents" element={
         <ProtectedRoute>
           <ReportIncidents />
         </ProtectedRoute>
       } />
       <Route path="/staff/schedule" element={
         <ProtectedRoute>
-          <MySchedule />
+          <StaffScheduleView />
         </ProtectedRoute>
       } />
       <Route path="/staff/reports" element={
@@ -155,7 +157,7 @@ const AppWithGuard = () => {
           <MyReports />
         </ProtectedRoute>
       } />
-      <Route path="/staff/behavior" element={
+      <Route path="/staff/behavior-ratings" element={
         <ProtectedRoute>
           <BehaviorRatings />
         </ProtectedRoute>
@@ -165,14 +167,24 @@ const AppWithGuard = () => {
           <CounselingSessions />
         </ProtectedRoute>
       } />
-      <Route path="/staff/leave" element={
+      <Route path="/staff/leave-requests" element={
         <ProtectedRoute>
           <LeaveRequests />
+        </ProtectedRoute>
+      } />
+      <Route path="/staff/settings" element={
+        <ProtectedRoute>
+          <StaffSettings />
         </ProtectedRoute>
       } />
       <Route path="/staff/attendance" element={
         <ProtectedRoute>
           <FaceRecognitionAttendance />
+        </ProtectedRoute>
+      } />
+      <Route path="/staff/verify-visitor" element={
+        <ProtectedRoute>
+          <VerifyVisitor />
         </ProtectedRoute>
       } />
       <Route path="/staff/test" element={
@@ -192,7 +204,7 @@ const AppWithGuard = () => {
       } />
       <Route path="/warden/staff" element={
         <ProtectedRoute>
-          <ManageStaff />
+          <StaffManagement />
         </ProtectedRoute>
       } />
       <Route path="/warden/schedule" element={

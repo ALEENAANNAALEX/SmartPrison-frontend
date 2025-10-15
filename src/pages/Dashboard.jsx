@@ -33,10 +33,13 @@ import {
   validateInmateId,
   validateVisitDate,
   validateVisitTime,
+  validateVisitDateForVisitorArea,
   validateRelationship,
   validatePurpose,
   getMinDateForVisit,
-  getMaxDateForVisit
+  getMaxDateForVisit,
+  isDateValidForVisit,
+  getNextValidVisitDate
 } from '../utils/validation';
 
 export default function Dashboard() {
@@ -90,7 +93,6 @@ export default function Dashboard() {
   // Redirect to login if user is not authenticated
   useEffect(() => {
     if (!user) {
-      console.log('No user found, redirecting to login');
       navigate('/login', { replace: true });
       return;
     }
@@ -120,11 +122,6 @@ export default function Dashboard() {
   // Update userProfile when user context changes (after fresh data fetch)
   useEffect(() => {
     if (user) {
-      console.log('🔄 Updating userProfile from user context:', {
-        name: user.name,
-        profilePicture: user.profilePicture,
-        phone: user.phoneNumber
-      });
       
       const profilePicture = user?.user_metadata?.avatar_url || user?.profilePicture || user?.profilePhoto;
       const profilePhotoUrl = profilePicture && !profilePicture.startsWith('http') 
@@ -143,21 +140,17 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  // Debug profile photo changes
-  useEffect(() => {
-    console.log('📸 Profile photo changed:', userProfile.profilePhoto);
-  }, [userProfile.profilePhoto]);
+  // Keep effect for reactivity but silence logs
+  useEffect(() => {}, [userProfile.profilePhoto]);
 
   // Use navigation guard to prevent going back to auth pages
   useNavigationGuard();
 
   // Redirect admin users to admin dashboard and validate session
   useEffect(() => {
-    console.log('Dashboard useEffect - User data:', user);
-    console.log('Dashboard useEffect - User role:', user?.role);
+    
     
     if (user && user.role === 'admin') {
-      console.log('Redirecting admin user to /admin');
       navigate('/admin', { replace: true });
     }
 
@@ -178,14 +171,11 @@ export default function Dashboard() {
     const loadFreshUserData = async () => {
       try {
         if (user && !user.supabaseId) { // Only for MongoDB users
-          console.log('🔄 Loading fresh user data for MongoDB user...');
           const freshUser = await fetchFreshUserData();
-          if (freshUser) {
-            console.log('✅ Fresh user data loaded successfully');
-          }
+          if (freshUser) {}
         }
       } catch (error) {
-        console.warn('Failed to load fresh user data:', error.message);
+        
       }
     };
 
@@ -199,10 +189,8 @@ export default function Dashboard() {
     setUserProfile(prev => ({ ...prev, ...newProfileData }));
     // Refresh global user context from backend after update
     try {
-      console.log('🔄 Refreshing user context after profile update...');
       const freshUser = await fetchFreshUserData();
       if (freshUser) {
-        console.log('✅ User context refreshed with latest data');
         // Update local profile state with fresh data
         setUserProfile(prev => ({
           ...prev,
@@ -212,10 +200,9 @@ export default function Dashboard() {
           address: freshUser.address || prev.address,
           profilePhoto: freshUser.profilePicture || prev.profilePhoto
         }));
-        console.log('📸 Updated profile photo URL:', freshUser.profilePicture);
       }
     } catch (error) {
-      console.warn('Failed to refresh user context:', error);
+      
       // Fallback to old method
       if (typeof refreshUser === 'function') {
         await refreshUser();
@@ -241,7 +228,6 @@ export default function Dashboard() {
         const base = 'http://localhost:5000';
         const res = await fetch(`${base}/api/visits/upcoming`, { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
-        console.log('Upcoming visits API response:', data);
         if (res.ok && data?.visits) {
           const mapped = data.visits.map(v => ({
             id: v._id,
@@ -936,6 +922,28 @@ function ScheduleVisitModal({ onClose }) {
   const [validInmateNames, setValidInmateNames] = useState([]);
   const [inmateNameError, setInmateNameError] = useState('');
   // relationship removed
+  // Helper to format slot labels as '10-11 am', etc.
+  function formatSlotLabel(slot) {
+    switch (slot) {
+      case '10:00': return '10-11 am';
+      case '11:00': return '11-12 am';
+      case '14:00': return '2-3 pm';
+      case '15:00': return '3-4 pm';
+      case '16:00': return '4-5 pm';
+      default: return slot;
+    }
+  }
+  // Helper to format slot labels as '10-11 am', etc.
+  function formatSlotLabel(slot) {
+    switch (slot) {
+      case '10:00': return '10-11 am';
+      case '11:00': return '11-12 am';
+      case '14:00': return '2-3 pm';
+      case '15:00': return '3-4 pm';
+      case '16:00': return '4-5 pm';
+      default: return slot;
+    }
+  }
   // ...existing code...
 
   useEffect(() => {
@@ -978,7 +986,11 @@ function ScheduleVisitModal({ onClose }) {
   // Define validation rules for visit scheduling
   const validationRules = {
     inmateName: validateName,
-    visitDate: validateVisitDate,
+    visitDate: (date) => {
+      const dateError = validateVisitDate(date);
+      if (dateError) return dateError;
+      return validateVisitDateForVisitorArea(date);
+    },
     visitTime: validateVisitTime,
     purpose: validatePurpose
   };
@@ -1019,9 +1031,22 @@ function ScheduleVisitModal({ onClose }) {
     }
   };
 
+  // Handle date change with validation
+  const handleDateChange = (name, value) => {
+    handleFieldChange(name, value);
+    
+    // If an invalid date is selected, suggest the next valid date
+    if (value && !isDateValidForVisit(value)) {
+      const nextValidDate = getNextValidVisitDate(new Date(value));
+      if (nextValidDate) {
+        // Show a notification about the suggested date
+        showError(`Selected date is not available. Next available date is ${new Date(nextValidDate).toLocaleDateString()}.`, 'Invalid Date');
+      }
+    }
+  };
+
   const [loading, setLoading] = useState(false);
   const [availableSlots, setAvailableSlots] = useState([
-    { slot: '09:00', remaining: 10 },
     { slot: '10:00', remaining: 10 },
     { slot: '11:00', remaining: 10 },
     { slot: '14:00', remaining: 10 },
@@ -1134,20 +1159,34 @@ function ScheduleVisitModal({ onClose }) {
             {/* Inmate ID removed as per requirements */}
 
 
-            <ValidatedInput
-              label="Visit Date"
-              name="visitDate"
-              type="date"
-              value={formData.visitDate}
-              onChange={handleFieldChange}
-              onBlur={handleFieldBlur}
-              error={getFieldError('visitDate')}
-              isValid={isFieldValid('visitDate')}
-              required
-              min={getMinDateForVisit()}
-              max={getMaxDateForVisit()}
-              helperText="Select a date within the  1 months"
-            />
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Visit Date *
+              </label>
+              <input
+                type="date"
+                name="visitDate"
+                value={formData.visitDate}
+                onChange={(e) => handleDateChange('visitDate', e.target.value)}
+                onBlur={() => handleFieldBlur('visitDate')}
+                min={getMinDateForVisit()}
+                max={getMaxDateForVisit()}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  getFieldError('visitDate') 
+                    ? 'border-red-300 bg-red-50' 
+                    : isFieldValid('visitDate') 
+                      ? 'border-green-300 bg-green-50' 
+                      : 'border-gray-300'
+                }`}
+                required
+              />
+              {getFieldError('visitDate') && (
+                <p className="text-sm text-red-600">{getFieldError('visitDate')}</p>
+              )}
+              <p className="text-sm text-gray-500">
+                Only Tuesday, Thursday, and Saturday are available. Public holidays are disabled.
+              </p>
+            </div>
 
             <ValidatedSelect
               label="Visit Time"
@@ -1158,7 +1197,7 @@ function ScheduleVisitModal({ onClose }) {
               error={getFieldError('visitTime')}
               isValid={isFieldValid('visitTime')}
               required
-              options={availableSlots.map(s => ({ value: s.slot, label: `${s.slot} (${s.remaining} left)` }))}
+              options={availableSlots.map(s => ({ value: s.slot, label: `${formatSlotLabel(s.slot)} (${s.remaining} left)` }))}
               placeholder="Select time slot"
               helperText="Only slots with remaining capacity are shown"
             />

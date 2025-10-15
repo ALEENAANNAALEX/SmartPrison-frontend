@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, requiredRole = null }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -18,6 +19,57 @@ const ProtectedRoute = ({ children }) => {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Check role-based access
+  if (requiredRole) {
+    if (user.role !== requiredRole) {
+      // Redirect to appropriate dashboard based on user's actual role
+      let redirectPath = '/dashboard';
+      if (user.role === 'admin') {
+        redirectPath = '/admin';
+      } else if (user.role === 'warden') {
+        redirectPath = '/warden/dashboard';
+      } else if (user.role === 'staff') {
+        redirectPath = '/staff/dashboard';
+      }
+      return <Navigate to={redirectPath} replace />;
+    }
+  }
+
+  // Check route-based role requirements
+  const currentPath = location.pathname;
+  if (currentPath.startsWith('/warden/') && user.role !== 'warden') {
+    // Redirect non-wardens away from warden routes
+    let redirectPath = '/dashboard';
+    if (user.role === 'admin') {
+      redirectPath = '/admin';
+    } else if (user.role === 'staff') {
+      redirectPath = '/staff/dashboard';
+    }
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  if (currentPath.startsWith('/admin/') && user.role !== 'admin') {
+    // Redirect non-admins away from admin routes
+    let redirectPath = '/dashboard';
+    if (user.role === 'warden') {
+      redirectPath = '/warden/dashboard';
+    } else if (user.role === 'staff') {
+      redirectPath = '/staff/dashboard';
+    }
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  if (currentPath.startsWith('/staff/') && user.role !== 'staff') {
+    // Redirect non-staff away from staff routes
+    let redirectPath = '/dashboard';
+    if (user.role === 'admin') {
+      redirectPath = '/admin';
+    } else if (user.role === 'warden') {
+      redirectPath = '/warden/dashboard';
+    }
+    return <Navigate to={redirectPath} replace />;
   }
 
   return children;

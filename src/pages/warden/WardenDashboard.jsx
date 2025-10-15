@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import WardenLayout from '../../components/layout/WardenLayout';
@@ -23,6 +24,7 @@ import {
 const WardenDashboard = () => {
   const { user } = useAuth();
   const { showSuccess, showError } = useNotification();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalInmates: 0,
     totalStaff: 0,
@@ -65,42 +67,35 @@ const WardenDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const token = sessionStorage.getItem('token');
-      
-      // Fetch dashboard statistics
-      const statsResponse = await fetch('http://localhost:5000/api/warden/dashboard/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setStats(statsData.stats);
-      }
 
-      // Fetch recent activity
-      const activityResponse = await fetch('http://localhost:5000/api/warden/dashboard/activity', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (activityResponse.ok) {
-        const activityData = await activityResponse.json();
-        setRecentActivity(activityData.activity);
-      }
+      const authHeaders = { 'Authorization': `Bearer ${token}` };
 
-      // Fetch alerts
-      const alertsResponse = await fetch('http://localhost:5000/api/warden/dashboard/alerts', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      // Stats
+      try {
+        const r = await fetch('http://localhost:5000/api/warden/dashboard/stats', { headers: authHeaders });
+        if (r.ok) {
+          const data = await r.json();
+          setStats(data?.stats || stats);
         }
-      });
-      
-      if (alertsResponse.ok) {
-        const alertsData = await alertsResponse.json();
-        setAlerts(alertsData.alerts);
-      }
+      } catch (e) {}
+
+      // Activity
+      try {
+        const r = await fetch('http://localhost:5000/api/warden/dashboard/activity', { headers: authHeaders });
+        if (r.ok) {
+          const data = await r.json();
+          setRecentActivity(Array.isArray(data?.activity) ? data.activity : recentActivity);
+        }
+      } catch (e) {}
+
+      // Alerts
+      try {
+        const r = await fetch('http://localhost:5000/api/warden/dashboard/alerts', { headers: authHeaders });
+        if (r.ok) {
+          const data = await r.json();
+          setAlerts(Array.isArray(data?.alerts) ? data.alerts : alerts);
+        }
+      } catch (e) {}
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -109,49 +104,48 @@ const WardenDashboard = () => {
     }
   };
 
-  const StatCard = ({ icon: Icon, title, value, color, trend, onClick }) => (
-    <div
-      className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all duration-200 cursor-pointer group"
+  const StatCard = ({ icon: Icon, title, value, color, trend, onClick, loading: cardLoading = false }) => (
+    <div 
       onClick={onClick}
+      className={`${color} rounded-xl p-6 text-white cursor-pointer transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl`}
     >
       <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600 mb-2">{title}</p>
-          <p className="text-3xl font-bold text-gray-900">{value}</p>
-          {trend && (
-            <p className={`text-sm mt-2 flex items-center ${trend.positive ? 'text-green-600' : 'text-red-600'}`}>
-              <span className="mr-1">{trend.positive ? '↗' : '↘'}</span>
+        <div>
+          <p className="text-white/80 text-sm font-medium">{title}</p>
+          <p className="text-3xl font-bold mt-2">
+            {cardLoading ? '...' : value}
+          </p>
+          {trend && !cardLoading && (
+            <p className={`text-sm mt-2 ${trend.positive ? 'text-green-200' : 'text-red-200'}`}>
               {trend.value}
             </p>
           )}
         </div>
-        <div className={`p-4 rounded-xl ${color} group-hover:scale-110 transition-transform duration-200`}>
-          <Icon className="text-2xl text-white" />
+        <div className="bg-white/20 p-4 rounded-xl">
+          <Icon className="text-2xl" />
         </div>
       </div>
     </div>
   );
 
   const AlertCard = ({ alert }) => (
-    <div className={`p-4 rounded-lg border-l-4 ${
-      alert.priority === 'high' ? 'border-red-500 bg-red-50' :
-      alert.priority === 'medium' ? 'border-yellow-500 bg-yellow-50' :
-      'border-blue-500 bg-blue-50'
+    <div className={`p-4 rounded-xl border-l-4 ${
+      alert.priority === 'high' ? 'bg-red-50 border-red-400' :
+      alert.priority === 'medium' ? 'bg-yellow-50 border-yellow-400' :
+      'bg-blue-50 border-blue-400'
     }`}>
       <div className="flex items-start">
-        <div className="flex-shrink-0">
-          {alert.priority === 'high' ? (
-            <FaExclamationTriangle className="text-red-500" />
-          ) : alert.priority === 'medium' ? (
-            <FaClock className="text-yellow-500" />
-          ) : (
-            <FaBell className="text-blue-500" />
-          )}
+        <div className={`p-2 rounded-full mr-3 ${
+          alert.priority === 'high' ? 'bg-red-100 text-red-600' :
+          alert.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' :
+          'bg-blue-100 text-blue-600'
+        }`}>
+          <FaBell className="text-sm" />
         </div>
-        <div className="ml-3 flex-1">
-          <h4 className="text-sm font-medium text-gray-900">{alert.title}</h4>
-          <p className="text-sm text-gray-600 mt-1">{alert.message}</p>
-          <p className="text-xs text-gray-500 mt-2">{alert.time}</p>
+        <div className="flex-1">
+          <h4 className="font-semibold text-gray-900 text-sm">{alert.title}</h4>
+          <p className="text-gray-600 text-sm mt-1">{alert.message}</p>
+          <p className="text-gray-500 text-xs mt-2">{alert.time}</p>
         </div>
       </div>
     </div>
@@ -295,7 +289,8 @@ const WardenDashboard = () => {
             value={stats.totalInmates}
             color="bg-gradient-to-r from-blue-500 to-blue-600"
             trend={{ positive: true, value: "+5 this week" }}
-            onClick={() => window.location.href = '/warden/inmates'}
+            onClick={() => navigate('/warden/inmates')}
+            loading={loading}
           />
           <StatCard
             icon={FaUserTie}
@@ -303,7 +298,8 @@ const WardenDashboard = () => {
             value={stats.totalStaff}
             color="bg-gradient-to-r from-green-500 to-green-600"
             trend={{ positive: true, value: "+2 new staff" }}
-            onClick={() => window.location.href = '/warden/staff'}
+            onClick={() => setShowStaffModal(true)}
+            loading={loading}
           />
           <StatCard
             icon={FaFileAlt}
@@ -311,7 +307,8 @@ const WardenDashboard = () => {
             value={stats.pendingReports}
             color="bg-gradient-to-r from-yellow-500 to-yellow-600"
             trend={{ positive: false, value: "3 overdue" }}
-            onClick={() => window.location.href = '/warden/reports'}
+            onClick={() => navigate('/warden/reports')}
+            loading={loading}
           />
           <StatCard
             icon={FaGavel}
@@ -319,7 +316,8 @@ const WardenDashboard = () => {
             value={stats.pendingParoles}
             color="bg-gradient-to-r from-purple-500 to-purple-600"
             trend={{ positive: true, value: "2 approved today" }}
-            onClick={() => window.location.href = '/warden/paroles'}
+            onClick={() => navigate('/warden/paroles')}
+            loading={loading}
           />
         </div>
 
@@ -331,7 +329,8 @@ const WardenDashboard = () => {
             value={stats.pendingLeaves}
             color="bg-gradient-to-r from-orange-500 to-orange-600"
             trend={{ positive: false, value: "5 pending" }}
-            onClick={() => window.location.href = '/warden/leaves'}
+            onClick={() => navigate('/warden/leaves')}
+            loading={loading}
           />
           <StatCard
             icon={FaCalendarAlt}
@@ -339,7 +338,8 @@ const WardenDashboard = () => {
             value={stats.todaySchedule}
             color="bg-gradient-to-r from-teal-500 to-teal-600"
             trend={{ positive: true, value: "All on track" }}
-            onClick={() => window.location.href = '/warden/schedule'}
+            onClick={() => navigate('/warden/schedule')}
+            loading={loading}
           />
           <StatCard
             icon={FaChartLine}
@@ -347,7 +347,8 @@ const WardenDashboard = () => {
             value={stats.behaviorAlerts}
             color="bg-gradient-to-r from-red-500 to-red-600"
             trend={{ positive: false, value: "2 critical" }}
-            onClick={() => window.location.href = '/warden/behavior'}
+            onClick={() => navigate('/warden/behavior')}
+            loading={loading}
           />
           <StatCard
             icon={FaHeartbeat}
@@ -355,7 +356,8 @@ const WardenDashboard = () => {
             value={stats.rehabilitationPrograms}
             color="bg-gradient-to-r from-pink-500 to-pink-600"
             trend={{ positive: true, value: "85% completion" }}
-            onClick={() => window.location.href = '/warden/rehabilitation'}
+            onClick={() => navigate('/warden/rehabilitation')}
+            loading={loading}
           />
         </div>
 
@@ -421,12 +423,38 @@ const WardenDashboard = () => {
           </div>
         </div>
 
+        {/* Today's Schedule */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-6">Today's Schedule</h3>
+          <div className="space-y-4">
+            {(Array.isArray(stats.todayScheduleList) ? stats.todayScheduleList : [
+              { time: '09:00', activity: 'Morning briefing', location: 'Warden Office' },
+              { time: '11:00', activity: 'Block inspection', location: 'Block A' },
+              { time: '14:00', activity: 'Parole review meeting', location: 'Conference Room' },
+              { time: '16:00', activity: 'Staff debrief', location: 'Operations' }
+            ]).map((item, index) => (
+              <div key={index} className="flex items-center p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                <div className="bg-indigo-100 text-indigo-600 p-3 rounded-xl mr-4">
+                  <FaClock className="text-lg" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-gray-900">{item.activity}</h4>
+                    <span className="text-sm font-medium text-indigo-600">{item.time}</span>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">{item.location}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Quick Actions */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-xl font-bold text-gray-900 mb-6">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <button
-              onClick={() => window.location.href = '/warden/inmates/add'}
+              onClick={() => navigate('/warden/inmates/add')}
               className="group p-6 bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-xl text-center transition-all duration-200 border border-blue-200 hover:border-blue-300"
             >
               <FaUsers className="text-3xl text-blue-600 mx-auto mb-3 group-hover:scale-110 transition-transform" />
@@ -442,7 +470,7 @@ const WardenDashboard = () => {
               <p className="text-xs text-green-700 mt-1">Hire new staff member</p>
             </button>
             <button
-              onClick={() => window.location.href = '/warden/reports/create'}
+              onClick={() => navigate('/warden/reports/create')}
               className="group p-6 bg-gradient-to-br from-yellow-50 to-yellow-100 hover:from-yellow-100 hover:to-yellow-200 rounded-xl text-center transition-all duration-200 border border-yellow-200 hover:border-yellow-300"
             >
               <FaFileAlt className="text-3xl text-yellow-600 mx-auto mb-3 group-hover:scale-110 transition-transform" />
@@ -450,7 +478,7 @@ const WardenDashboard = () => {
               <p className="text-xs text-yellow-700 mt-1">Submit weekly report</p>
             </button>
             <button
-              onClick={() => window.location.href = '/warden/schedule'}
+              onClick={() => navigate('/warden/schedule')}
               className="group p-6 bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 rounded-xl text-center transition-all duration-200 border border-purple-200 hover:border-purple-300"
             >
               <FaCalendarAlt className="text-3xl text-purple-600 mx-auto mb-3 group-hover:scale-110 transition-transform" />
@@ -603,6 +631,7 @@ const WardenDashboard = () => {
                         <option value="Medical Officer">Medical Officer</option>
                         <option value="Rehabilitation Counselor">Rehabilitation Counselor</option>
                         <option value="Administrative Staff">Administrative Staff</option>
+                        <option value="Prison Control Room Officer">Prison Control Room Officer</option>
                       </select>
                     </div>
 

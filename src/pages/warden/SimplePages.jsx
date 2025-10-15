@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import WardenLayout from '../../components/layout/WardenLayout';
 import { 
   FaUsers, 
@@ -19,12 +19,32 @@ import {
 // Simple Inmates Page
 export const InmatesPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  
-  const mockInmates = [
-    { id: 1, name: 'John Doe', block: 'Block A', cell: 'A-101', status: 'Active' },
-    { id: 2, name: 'Jane Smith', block: 'Block B', cell: 'B-205', status: 'Active' },
-    { id: 3, name: 'Mike Johnson', block: 'Block A', cell: 'A-150', status: 'Medical' }
-  ];
+  const [inmates, setInmates] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchInmates();
+  }, []);
+
+  const fetchInmates = async () => {
+    try {
+      setLoading(true);
+      const token = sessionStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/warden/inmates', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.inmates)) {
+          setInmates(data.inmates);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching inmates:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <WardenLayout title="Inmates Management" subtitle="Manage and monitor all inmates">
@@ -50,7 +70,7 @@ export const InmatesPage = () => {
               <FaUsers className="h-8 w-8 text-blue-600" />
               <div className="ml-4">
                 <p className="text-sm text-gray-600">Total Inmates</p>
-                <p className="text-2xl font-bold">{mockInmates.length}</p>
+                <p className="text-2xl font-bold">{loading ? '...' : inmates.length}</p>
               </div>
             </div>
           </div>
@@ -59,7 +79,7 @@ export const InmatesPage = () => {
               <FaUsers className="h-8 w-8 text-green-600" />
               <div className="ml-4">
                 <p className="text-sm text-gray-600">Active</p>
-                <p className="text-2xl font-bold">{mockInmates.filter(i => i.status === 'Active').length}</p>
+                <p className="text-2xl font-bold">{loading ? '...' : inmates.filter(i => i.status === 'active').length}</p>
               </div>
             </div>
           </div>
@@ -68,7 +88,7 @@ export const InmatesPage = () => {
               <FaUsers className="h-8 w-8 text-yellow-600" />
               <div className="ml-4">
                 <p className="text-sm text-gray-600">Medical</p>
-                <p className="text-2xl font-bold">{mockInmates.filter(i => i.status === 'Medical').length}</p>
+                <p className="text-2xl font-bold">{loading ? '...' : inmates.filter(i => i.status === 'medical').length}</p>
               </div>
             </div>
           </div>
@@ -90,29 +110,52 @@ export const InmatesPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {mockInmates.filter(inmate => 
-                  inmate.name.toLowerCase().includes(searchTerm.toLowerCase())
-                ).map((inmate) => (
-                  <tr key={inmate.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{inmate.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{inmate.block} - {inmate.cell}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        inmate.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {inmate.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <button className="text-indigo-600 hover:text-indigo-900 mr-3">
-                        <FaEye />
-                      </button>
-                      <button className="text-green-600 hover:text-green-900">
-                        <FaEdit />
-                      </button>
+                {loading ? (
+                  <tr>
+                    <td colSpan="4" className="px-6 py-8 text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto"></div>
+                      <p className="mt-2 text-gray-600">Loading inmates...</p>
                     </td>
                   </tr>
-                ))}
+                ) : inmates.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="px-6 py-8 text-center text-gray-600">
+                      No inmates found in the database.
+                    </td>
+                  </tr>
+                ) : (
+                  inmates.filter(inmate => {
+                    const fullName = inmate.fullName || [inmate.firstName, inmate.middleName, inmate.lastName].filter(Boolean).join(' ');
+                    return fullName.toLowerCase().includes(searchTerm.toLowerCase());
+                  }).map((inmate) => {
+                    const fullName = inmate.fullName || [inmate.firstName, inmate.middleName, inmate.lastName].filter(Boolean).join(' ') || 'Unknown';
+                    return (
+                      <tr key={inmate._id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{fullName}</td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {inmate.currentBlock?.name || 'Unknown Block'} - Cell {inmate.cellNumber || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            inmate.status === 'active' ? 'bg-green-100 text-green-800' : 
+                            inmate.status === 'medical' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {inmate.status?.charAt(0).toUpperCase() + inmate.status?.slice(1) || 'Unknown'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          <button className="text-indigo-600 hover:text-indigo-900 mr-3">
+                            <FaEye />
+                          </button>
+                          <button className="text-green-600 hover:text-green-900">
+                            <FaEdit />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

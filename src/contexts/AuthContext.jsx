@@ -16,6 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false)
+  const [isProcessingAuth, setIsProcessingAuth] = useState(false)
   const [warningTimeLeft, setWarningTimeLeft] = useState(0)
 
   // Session timeout settings DISABLED as requested
@@ -93,7 +94,6 @@ export const AuthProvider = ({ children }) => {
 
   // Function to handle session expiry
   const handleSessionExpiry = async () => {
-    console.log('🔒 Session expired - logging out user')
     setShowTimeoutWarning(false)
 
     // Clear all auth data including Supabase
@@ -173,15 +173,28 @@ export const AuthProvider = ({ children }) => {
     // Only check Supabase auth if no session data exists and no explicit logout
     const wasLoggedOut = sessionStorage.getItem('explicitLogout')
     if (!wasLoggedOut) {
-      const { user } = await getCurrentUser()
-      if (user) {
-        // If Supabase user exists, set up session tracking
-        const now = Date.now().toString()
-        sessionStorage.setItem('sessionStart', now)
-        sessionStorage.setItem('lastActivity', now)
+      try {
+        const { user, error } = await getCurrentUser()
+        if (error) {
+          // Supabase auth not available or no session - this is expected when using JWT auth
+          // silent
+          setUser(null)
+          return null
+        }
+        if (user) {
+          // If Supabase user exists, set up session tracking
+          const now = Date.now().toString()
+          sessionStorage.setItem('sessionStart', now)
+          sessionStorage.setItem('lastActivity', now)
+        }
+        setUser(user)
+        return user
+      } catch (error) {
+        // Supabase not available or configured - this is expected when using JWT auth
+        // silent
+        setUser(null)
+        return null
       }
-      setUser(user)
-      return user
     }
 
     // If explicitly logged out, don't check Supabase
@@ -242,28 +255,33 @@ export const AuthProvider = ({ children }) => {
     // Listen for auth changes
     const { data: { subscription } } = supabase ? supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔍 Auth state change event:', event)
-        console.log('🔍 Session:', session)
+        // Prevent multiple simultaneous auth processing
+        if (isProcessingAuth) {
+          return
+        }
+        
+        
+        setIsProcessingAuth(true)
+        
+        // Set a timeout to reset the processing flag in case of errors
+        const processingTimeout = setTimeout(() => {
+          setIsProcessingAuth(false)
+        }, 10000) // 10 second timeout
 
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           const supabaseUser = session?.user
           setUser(supabaseUser || null)
 
-          console.log('🔍 Supabase user received:', supabaseUser)
-
           // For ANY sign-in (including Google), sync user with MongoDB
           if (event === 'SIGNED_IN' && supabaseUser) {
-            console.log('🔄 Starting sync process...')
-            console.log('🔄 User ID:', supabaseUser.id)
-            console.log('🔄 User Email:', supabaseUser.email)
-            console.log('🔄 User Provider:', supabaseUser.app_metadata?.provider)
+            // silent
 
             // Always sync Supabase users with MongoDB
             const syncedUser = await syncSupabaseUserWithMongoDB(supabaseUser)
 
             // After sync, fetch the latest user data to ensure we have all profile updates
             if (syncedUser) {
-              console.log('🔄 Fetching latest user data after sync...')
+              // silent
               try {
                 const token = sessionStorage.getItem('token')
                 if (token) {
@@ -284,7 +302,7 @@ export const AuthProvider = ({ children }) => {
                         role: data.user.role,
                         authProvider: data.user.authProvider
                       }
-                      console.log('✅ Fresh user data loaded after sync:', updatedUser)
+                      // silent
                       sessionStorage.setItem('user', JSON.stringify(updatedUser))
                       setUser(updatedUser)
                     }
@@ -307,14 +325,14 @@ export const AuthProvider = ({ children }) => {
           clearAllAuthData()
         }
         setLoading(false)
+        clearTimeout(processingTimeout)
+        setIsProcessingAuth(false)
       }
     ) : { data: { subscription: { unsubscribe: () => {} } } }
 
     // Function to sync Supabase user with MongoDB
     const syncSupabaseUserWithMongoDB = async (supabaseUser) => {
       try {
-        console.log('🌐 Calling MongoDB sync API...')
-        console.log('📤 Sending user data:', JSON.stringify(supabaseUser, null, 2))
 
         const response = await fetch('http://localhost:5000/api/auth/sync-oauth-user', {
           method: 'POST',
@@ -325,7 +343,7 @@ export const AuthProvider = ({ children }) => {
           body: JSON.stringify({ supabaseUser })
         })
 
-        console.log('📡 Response received - Status:', response.status)
+        
 
         if (!response.ok) {
           const errorText = await response.text()
@@ -334,7 +352,6 @@ export const AuthProvider = ({ children }) => {
         }
 
         const data = await response.json()
-        console.log('📡 Response data:', data)
 
         if (data.success) {
           // Store MongoDB user data and token in sessionStorage (clears on window close)
@@ -344,13 +361,6 @@ export const AuthProvider = ({ children }) => {
           sessionStorage.setItem('sessionStart', now)
           sessionStorage.setItem('lastActivity', now)
           sessionStorage.removeItem('explicitLogout') // Clear logout flag
-          console.log('✅ SUCCESS! Supabase user synced with MongoDB:')
-          console.log('   - MongoDB ID:', data.user.id)
-          console.log('   - Supabase ID:', data.user.supabaseId)
-          console.log('   - Name:', data.user.name)
-          console.log('   - Email:', data.user.email)
-          console.log('   - Auth Provider:', data.user.authProvider)
-          console.log('   - Role:', data.user.role)
 
           // Return user data so we can use it for navigation
           return data.user
@@ -403,11 +413,10 @@ export const AuthProvider = ({ children }) => {
     try {
       const token = sessionStorage.getItem('token')
       if (!token) {
-        console.log('No token found for fresh user data fetch')
         return null
       }
 
-      console.log('🔄 Fetching fresh user data from database...')
+      
       const response = await fetch('http://localhost:5000/api/user/profile', {
         method: 'GET',
         headers: {
@@ -422,7 +431,6 @@ export const AuthProvider = ({ children }) => {
       }
 
       const data = await response.json()
-      console.log('✅ Fresh user data fetched:', data)
 
       if (data.success && data.user) {
         // Update sessionStorage with fresh data
@@ -434,10 +442,8 @@ export const AuthProvider = ({ children }) => {
           authProvider: data.user.authProvider
         }
 
-        console.log('📸 Profile picture in fresh data:', updatedUser.profilePicture);
         sessionStorage.setItem('user', JSON.stringify(updatedUser))
         setUser(updatedUser)
-        console.log('✅ User context updated with fresh data')
         return updatedUser
       }
 
